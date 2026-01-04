@@ -42,8 +42,16 @@ router.get("/:id", async (req, res) => {
 router.put("/profile", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { business_name, role, industry, location, bio, avatar_url } =
+    const { full_name, business_name, role, industry, location, bio, avatar_url } =
       req.body;
+
+    // Update users table for full_name if provided
+    if (full_name) {
+      await pool.query(
+        `UPDATE users SET full_name = $1 WHERE id = $2`,
+        [full_name, userId]
+      );
+    }
 
     await pool.query(
       `
@@ -64,6 +72,7 @@ router.put("/profile", authMiddleware, async (req, res) => {
 
     res.json({ success: true, message: "Profile updated" });
   } catch (error) {
+    console.error("Profile update error:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
