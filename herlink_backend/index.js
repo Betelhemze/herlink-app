@@ -26,15 +26,10 @@ app.use("/api/feed", feedRoutes);
 app.use("/api/payments", paymentRoutes);
 
 // Example route
-app.get("/users", async (req, res) => {
-  try {
-    const result = await pool.query("SELECT * FROM users");
-    res.json(result.rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Server error");
-  }
+app.get("/health", (req, res) => {
+  res.json({ status: "OK", service: "HerLink Backend" });
 });
+
 pool.query("SELECT NOW()", (err, res) => {
   if (err) {
     console.error("Database connection failed:", err);
