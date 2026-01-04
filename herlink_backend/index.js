@@ -1,0 +1,51 @@
+import dotenv from "dotenv";
+import express from "express";
+import cors from "cors";
+import authRoutes from "./routes/auth.js";
+import userRoutes from "./routes/users.js";
+import productRoutes from "./routes/products.js";
+import eventRoutes from "./routes/events.js";
+import collaborationRoutes from "./routes/collaborations.js";
+import feedRoutes from "./routes/feed.js";
+import paymentRoutes from "./routes/payments.js";
+
+dotenv.config();
+
+import pool from "./config/db.js";
+
+
+const app = express();
+app.use(express.json());
+
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/products", productRoutes);
+app.use("/api/events", eventRoutes);
+app.use("/api/collaborations", collaborationRoutes);
+app.use("/api/feed", feedRoutes);
+app.use("/api/payments", paymentRoutes);
+
+// Example route
+app.get("/users", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM users");
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Server error");
+  }
+});
+pool.query("SELECT NOW()", (err, res) => {
+  if (err) {
+    console.error("Database connection failed:", err);
+  } else {
+    console.log("Database connected at:", res.rows[0].now);
+  }
+});
+
+
+// Port setup
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});

@@ -1,0 +1,11 @@
+# Node
+node_modules/
+.env
+
+# Flutter
+build/
+.dart_tool/
+.pub-cache/
+android/.gradle/
+android/local.properties
+ios/Pods/

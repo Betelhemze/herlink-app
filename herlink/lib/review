@@ -1,0 +1,125 @@
+import 'package:flutter/material.dart';
+
+class ReviewTab extends StatelessWidget {
+  const ReviewTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFFFE4E1), // light pink background
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: const [
+                Text(
+                  "Reviews (10)",
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87),
+                ),
+                Text(
+                  "4.7 ★",
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Rating distribution bars
+            _ratingBar(5, 6),
+            _ratingBar(4, 3),
+            _ratingBar(3, 1),
+            _ratingBar(2, 0),
+            _ratingBar(1, 0),
+            const SizedBox(height: 20),
+
+            const Text("All reviews",
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87)),
+            const SizedBox(height: 12),
+
+            // Reviews list
+            Expanded(
+              child: ListView(
+                children: const [
+                  _reviewItem("User name", "2 days ago", 5, "Review here"),
+                  _reviewItem("User name", "2 days ago", 4, "Review here"),
+                  _reviewItem("User name", "5 days ago", 3, "Helpful product"),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Rating bar widget
+  static Widget _ratingBar(int stars, int count) {
+    return Row(
+      children: [
+        Text("$stars ★", style: const TextStyle(color: Colors.black87)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: LinearProgressIndicator(
+            value: count / 10, // total reviews = 10
+            backgroundColor: Colors.grey[300],
+            color: Colors.purple,
+            minHeight: 8,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text("$count"),
+      ],
+    );
+  }
+}
+
+// Review item widget
+class _reviewItem extends StatelessWidget {
+  final String username;
+  final String time;
+  final int rating;
+  final String text;
+
+  const _reviewItem(this.username, this.time, this.rating, this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: ListTile(
+        leading: const CircleAvatar(child: Icon(Icons.person)),
+        title: Text(username),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(time, style: const TextStyle(color: Colors.grey)),
+            Row(
+              children: List.generate(
+                5,
+                (index) => Icon(
+                  index < rating ? Icons.star : Icons.star_border,
+                  size: 16,
+                  color: Colors.orange,
+                ),
+              ),
+            ),
+            Text(text),
+          ],
+        ),
+      ),
+    );
+  }
+}
