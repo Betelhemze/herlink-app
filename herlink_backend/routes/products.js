@@ -5,27 +5,45 @@ import { authMiddleware } from "../middleware/authmiddleware.js";
 const router = express.Router();
 
 // Example filters: category, minPrice, maxPrice
+// Example filters: category, minPrice, maxPrice, search, seller_id
 router.get("/", async (req, res) => {
   try {
-    const { category, minPrice, maxPrice } = req.query;
+    const { category, minPrice, maxPrice, search, seller_id } = req.query;
 
-    let query = `SELECT * FROM products WHERE 1=1`;
+    let query = `
+      SELECT p.*, u.full_name as seller_name 
+      FROM products p
+      LEFT JOIN users u ON p.seller_id = u.id
+      WHERE 1=1
+    `;
     const params = [];
 
     if (category) {
       params.push(category);
-      query += ` AND category = $${params.length}`;
+      query += ` AND p.category = $${params.length}`;
     }
 
     if (minPrice) {
       params.push(minPrice);
-      query += ` AND price >= $${params.length}`;
+      query += ` AND p.price >= $${params.length}`;
     }
 
     if (maxPrice) {
       params.push(maxPrice);
-      query += ` AND price <= $${params.length}`;
+      query += ` AND p.price <= $${params.length}`;
     }
+
+    if (search) {
+      params.push(`%${search}%`);
+      query += ` AND (p.title ILIKE $${params.length} OR p.description ILIKE $${params.length})`;
+    }
+
+    if (seller_id) {
+      params.push(seller_id);
+      query += ` AND p.seller_id = $${params.length}`;
+    }
+
+    query += ` ORDER BY p.created_at DESC`;
 
     const result = await pool.query(query, params);
     res.json(result.rows);
@@ -66,7 +84,15 @@ router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
-    const result = await pool.query(`SELECT * FROM products WHERE id=$1`, [id]);
+    const result = await pool.query(
+      `
+      SELECT p.*, u.full_name as seller_name 
+      FROM products p
+      LEFT JOIN users u ON p.seller_id = u.id
+      WHERE p.id=$1
+      `, 
+      [id]
+    );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: "Product not found" });

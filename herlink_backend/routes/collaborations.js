@@ -14,6 +14,7 @@ router.get("/", async (req, res) => {
         type,
         status,
         view_count,
+        initiator_id,
         created_at
       FROM collaborations
       ORDER BY created_at DESC
@@ -70,6 +71,7 @@ router.get("/:id", async (req, res) => {
         type,
         status,
         view_count,
+        initiator_id,
         created_at
       FROM collaborations
       WHERE id = $1

@@ -3,6 +3,32 @@ import  pool  from "../config/db.js";
 import { authMiddleware } from "../middleware/authmiddleware.js";
 const router = express.Router();
 
+router.get("/", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `
+      SELECT 
+        u.id,
+        u.full_name,
+        u.email,
+        p.business_name,
+        p.role,
+        p.industry,
+        p.location,
+        p.bio,
+        p.avatar_url,
+        p.rating_avg,
+        p.followers_count
+      FROM users u
+      LEFT JOIN profiles p ON u.id = p.user_id
+      `
+    );
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 router.get("/me", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.userId;
