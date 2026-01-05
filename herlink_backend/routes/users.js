@@ -3,6 +3,69 @@ import  pool  from "../config/db.js";
 import { authMiddleware } from "../middleware/authmiddleware.js";
 const router = express.Router();
 
+router.get("/me", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const result = await pool.query(
+      `
+      SELECT 
+        u.id,
+        u.full_name,
+        u.email,
+        p.business_name,
+        p.role,
+        p.industry,
+        p.location,
+        p.bio,
+        p.avatar_url,
+        p.rating_avg,
+        p.followers_count
+      FROM users u
+      LEFT JOIN profiles p ON u.id = p.user_id
+      WHERE u.id = $1
+      `,
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.get("/me/events", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const hostedEvents = await pool.query(
+      `SELECT * FROM events WHERE organizer_id = $1`,
+      [userId]
+    );
+
+    const joinedEvents = await pool.query(
+      `
+      SELECT e.*
+      FROM events e
+      JOIN event_attendees ea ON e.id = ea.event_id
+      WHERE ea.user_id = $1
+      `,
+      [userId]
+    );
+
+    res.json({
+      hosted: hostedEvents.rows,
+      joined: joinedEvents.rows,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
