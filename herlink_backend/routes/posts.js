@@ -15,6 +15,7 @@ router.get("/", async (req, res) => {
         p.comments_count,
         p.share_count,
         p.created_at,
+        p.author_id,
         u.full_name,
         pr.avatar_url
       FROM posts p
