@@ -18,7 +18,9 @@ router.get("/", async (req, res) => {
         p.bio,
         p.avatar_url,
         p.rating_avg,
-        p.followers_count
+        p.followers_count,
+        p.interests,
+        p.look_for
       FROM users u
       LEFT JOIN profiles p ON u.id = p.user_id
       `
@@ -46,7 +48,9 @@ router.get("/me", authMiddleware, async (req, res) => {
         p.bio,
         p.avatar_url,
         p.rating_avg,
-        p.followers_count
+        p.followers_count,
+        p.interests,
+        p.look_for
       FROM users u
       LEFT JOIN profiles p ON u.id = p.user_id
       WHERE u.id = $1
@@ -109,7 +113,9 @@ router.get("/:id", async (req, res) => {
         p.bio,
         p.avatar_url,
         p.rating_avg,
-        p.followers_count
+        p.followers_count,
+        p.interests,
+        p.look_for
       FROM users u
       LEFT JOIN profiles p ON u.id = p.user_id
       WHERE u.id = $1
@@ -131,7 +137,7 @@ router.get("/:id", async (req, res) => {
 router.put("/profile", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { full_name, business_name, role, industry, location, bio, avatar_url } =
+    const { full_name, business_name, role, industry, location, bio, avatar_url, interests, look_for } =
       req.body;
 
     // Update users table for full_name if provided
@@ -145,8 +151,8 @@ router.put("/profile", authMiddleware, async (req, res) => {
     await pool.query(
       `
       INSERT INTO profiles 
-      (user_id, business_name, role, industry, location, bio, avatar_url)
-      VALUES ($1,$2,$3,$4,$5,$6,$7)
+      (user_id, business_name, role, industry, location, bio, avatar_url, interests, look_for)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
       ON CONFLICT (user_id)
       DO UPDATE SET
         business_name = EXCLUDED.business_name,
@@ -154,9 +160,11 @@ router.put("/profile", authMiddleware, async (req, res) => {
         industry = EXCLUDED.industry,
         location = EXCLUDED.location,
         bio = EXCLUDED.bio,
-        avatar_url = EXCLUDED.avatar_url
+        avatar_url = EXCLUDED.avatar_url,
+        interests = EXCLUDED.interests,
+        look_for = EXCLUDED.look_for
       `,
-      [userId, business_name, role, industry, location, bio, avatar_url]
+      [userId, business_name, role, industry, location, bio, avatar_url, interests, look_for]
     );
 
     res.json({ success: true, message: "Profile updated" });

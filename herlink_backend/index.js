@@ -11,6 +11,7 @@ import messageRoutes from "./routes/messages.js";
 import feedRoutes from "./routes/feed.js";
 import paymentRoutes from "./routes/payments.js";
 import uploadRoutes from "./routes/upload.js";
+import postsRoutes from "./routes/posts.js";
 import path from "path";
 import { fileURLToPath } from 'url';
 
@@ -36,6 +37,7 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/feed", feedRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/upload", uploadRoutes);
+app.use("/api/posts", postsRoutes);
 
 // Example route
 app.get("/health", (req, res) => {

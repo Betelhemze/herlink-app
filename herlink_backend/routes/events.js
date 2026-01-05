@@ -6,17 +6,26 @@ const router = express.Router();
 
 router.get("/", async (req, res) => {
   try {
-    const result = await pool.query(
-      `
-      SELECT *
-      FROM events
-      WHERE start_time >= NOW()
-      ORDER BY start_time ASC
-      `
-    );
+    const { category } = req.query;
+    let query = `
+      SELECT e.*, u.full_name as organizer_name
+      FROM events e
+      LEFT JOIN users u ON e.organizer_id = u.id
+      WHERE e.start_time >= NOW()
+    `;
+    const params = [];
 
+    if (category) {
+      params.push(category);
+      query += ` AND e.category = $${params.length}`;
+    }
+
+    query += ` ORDER BY e.start_time ASC`;
+
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -71,13 +80,21 @@ router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
-    const event = await pool.query(`SELECT * FROM events WHERE id = $1`, [id]);
+    const result = await pool.query(
+      `
+      SELECT e.*, u.full_name as organizer_name
+      FROM events e
+      LEFT JOIN users u ON e.organizer_id = u.id
+      WHERE e.id = $1
+      `, 
+      [id]
+    );
 
-    if (event.rows.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ message: "Event not found" });
     }
 
-    res.json(event.rows[0]);
+    res.json(result.rows[0]);
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
