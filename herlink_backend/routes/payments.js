@@ -12,13 +12,27 @@ router.post("/initiate", authMiddleware, async (req, res) => {
 
     console.log("[payments:initiate] userId=", userId, "body=", req.body);
 
-    if (!amount || !reference_id || !type) {
-      console.warn("[payments:initiate] Missing fields:", {
-        amount,
-        reference_id,
-        type,
-      });
-      return res.status(400).json({ message: "Missing payment fields" });
+    // Validate amount
+    const amt = Number(amount);
+    if (!amt || isNaN(amt) || amt <= 0) {
+      console.warn("[payments:initiate] Invalid amount:", amount);
+      return res.status(400).json({ message: "Invalid amount" });
+    }
+
+    // Determine a UUID-safe reference id. If client provided a composite id like "prd_<uuid>_<ts>",
+    // extract the UUID part; otherwise generate a new uuid.
+    let refIdToStore;
+    if (reference_id && typeof reference_id === "string") {
+      const match = reference_id.match(
+        /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/
+      );
+      if (match) {
+        refIdToStore = match[0];
+      }
+    }
+    if (!refIdToStore) {
+      refIdToStore = uuidv4();
+      console.log("[payments:initiate] generated refId=", refIdToStore);
     }
 
     const result = await pool.query(
@@ -28,18 +42,21 @@ router.post("/initiate", authMiddleware, async (req, res) => {
       VALUES ($1, $2, 'PENDING', $3, $4, 'Telebirr')
       RETURNING id, status
       `,
-      [userId, amount, reference_id, type]
+      [userId, amt, refIdToStore, type]
     );
 
     console.log(
       "[payments:initiate] created transaction id=",
-      result.rows[0].id
+      result.rows[0].id,
+      "reference_id=",
+      refIdToStore
     );
 
     // Mock Telebirr response
     res.status(201).json({
       message: "Telebirr payment initiated",
       transaction_id: result.rows[0].id,
+      reference_id: refIdToStore,
       status: "PENDING",
       instruction: "Simulate Telebirr approval in verify step",
     });
