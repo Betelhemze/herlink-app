@@ -6,44 +6,50 @@ const router = express.Router();
 
 // Example filters: category, minPrice, maxPrice
 // Example filters: category, minPrice, maxPrice, search, seller_id
+// Example filters: category, minPrice, maxPrice, search, seller_id
 router.get("/", async (req, res) => {
   try {
     const { category, minPrice, maxPrice, search, seller_id } = req.query;
 
     let query = `
-      SELECT p.*, u.full_name as seller_name 
+      SELECT p.*, u.full_name as seller_name,
+      COALESCE(ROUND(AVG(r.rating)::numeric, 1), 0)::float as avg_rating,
+      COUNT(r.id)::int as review_count
       FROM products p
       LEFT JOIN users u ON p.seller_id = u.id
+      LEFT JOIN reviews r ON p.id = r.target_id AND r.target_type = 'Product'
       WHERE 1=1
     `;
     const params = [];
+    let paramIndex = 1;
 
     if (category) {
       params.push(category);
-      query += ` AND p.category = $${params.length}`;
+      query += ` AND p.category = $${paramIndex++}`;
     }
 
     if (minPrice) {
       params.push(minPrice);
-      query += ` AND p.price >= $${params.length}`;
+      query += ` AND p.price >= $${paramIndex++}`;
     }
 
     if (maxPrice) {
       params.push(maxPrice);
-      query += ` AND p.price <= $${params.length}`;
+      query += ` AND p.price <= $${paramIndex++}`;
     }
 
     if (search) {
       params.push(`%${search}%`);
-      query += ` AND (p.title ILIKE $${params.length} OR p.description ILIKE $${params.length})`;
+      const searchTerm = params.length; // Correct logical index if strict parsing required, but simplest is just bind
+      query += ` AND (p.title ILIKE $${paramIndex++} OR p.description ILIKE $${paramIndex - 1})`;
     }
 
     if (seller_id) {
       params.push(seller_id);
-      query += ` AND p.seller_id = $${params.length}`;
+      query += ` AND p.seller_id = $${paramIndex++}`;
     }
 
-    query += ` ORDER BY p.created_at DESC`;
+    query += ` GROUP BY p.id, u.full_name ORDER BY p.created_at DESC`;
 
     const result = await pool.query(query, params);
     res.json(result.rows);
@@ -86,10 +92,14 @@ router.get("/:id", async (req, res) => {
 
     const result = await pool.query(
       `
-      SELECT p.*, u.full_name as seller_name 
+      SELECT p.*, u.full_name as seller_name,
+      COALESCE(ROUND(AVG(r.rating)::numeric, 1), 0)::float as avg_rating,
+      COUNT(r.id)::int as review_count
       FROM products p
       LEFT JOIN users u ON p.seller_id = u.id
+      LEFT JOIN reviews r ON p.id = r.target_id AND r.target_type = 'Product'
       WHERE p.id=$1
+      GROUP BY p.id, u.full_name
       `, 
       [id]
     );
@@ -103,6 +113,25 @@ router.get("/:id", async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+
+router.get("/:id/reviews", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      `SELECT r.*, u.full_name, u.avatar_url, r.created_at
+       FROM reviews r
+       JOIN users u ON r.author_id = u.id
+       WHERE r.target_id = $1 AND r.target_type = 'Product'
+       ORDER BY r.created_at DESC`,
+      [id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error fetching reviews" });
+  }
+});
+
 router.put("/:id", authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
