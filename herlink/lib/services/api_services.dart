@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import 'auth_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart'; // For debugPrint
 
 class ApiService {
   static Future<http.Response> get(String endpoint, {bool auth = false}) async {
@@ -197,6 +199,29 @@ class ApiService {
     return get("/api/messages/conversations", auth: true);
   }
 
+  static Future<http.Response> getWithCache(String endpoint, {bool auth = false}) async {
+    try {
+      // 1. Try Network
+      final response = await get(endpoint, auth: auth);
+      if (response.statusCode == 200) {
+        // Save to cache
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('cache_$endpoint', response.body);
+      }
+      return response;
+    } catch (e) {
+      // 2. Fallback to Cache
+      debugPrint("Network failed, checking cache for $endpoint: $e");
+      final prefs = await SharedPreferences.getInstance();
+      final cachedBody = prefs.getString('cache_$endpoint');
+      if (cachedBody != null) {
+        debugPrint("Returning cached data for $endpoint");
+        return http.Response(cachedBody, 200);
+      }
+      rethrow;
+    }
+  }
+
   // Products
   static Future<http.Response> getProducts({
     String? category,
@@ -211,7 +236,8 @@ class ApiService {
     if (maxPrice != null) query += "maxPrice=$maxPrice&";
     if (search != null) query += "search=$search&";
     if (sellerId != null) query += "seller_id=$sellerId&";
-    return get("/api/products?$query");
+    // Use cache for product feed
+    return getWithCache("/api/products?$query");
   }
 
   static Future<http.Response> getProductById(String id) async {
@@ -249,7 +275,7 @@ class ApiService {
     String query = "";
     if (category != null) query += "category=$category&";
     if (search != null) query += "search=$search&";
-    return get("/api/events?$query");
+    return getWithCache("/api/events?$query");
   }
 
   static Future<http.Response> getEventById(String id) async {
@@ -266,7 +292,7 @@ class ApiService {
 
   // Posts
   static Future<http.Response> getPosts() async {
-    return get("/api/posts");
+    return getWithCache("/api/posts");
   }
 
   static Future<http.Response> createPost(Map<String, dynamic> data) async {
