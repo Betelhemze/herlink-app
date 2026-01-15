@@ -82,13 +82,6 @@ class _SettingsPageState extends State<SettingsPage> {
           
           const SizedBox(height: 24),
           _buildSectionHeader("Preferences"),
-           _buildSwitchItem(
-            icon: Icons.dark_mode_outlined,
-            title: "Dark Mode",
-            value: _darkMode,
-            onChanged: (val) => setState(() => _darkMode = val),
-          ),
-
           const SizedBox(height: 24),
           _buildSectionHeader("Support"),
           _buildSettingItem(
