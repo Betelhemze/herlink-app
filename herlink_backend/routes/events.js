@@ -6,7 +6,7 @@ const router = express.Router();
 
 router.get("/", async (req, res) => {
   try {
-    const { category } = req.query;
+    const { category, search } = req.query;
     let query = `
       SELECT e.*, u.full_name as organizer_name
       FROM events e
@@ -18,6 +18,11 @@ router.get("/", async (req, res) => {
     if (category) {
       params.push(category);
       query += ` AND e.category = $${params.length}`;
+    }
+
+    if (search) {
+      params.push(`%${search}%`);
+      query += ` AND (e.title ILIKE $${params.length} OR e.description ILIKE $${params.length})`;
     }
 
     query += ` ORDER BY e.start_time ASC`;

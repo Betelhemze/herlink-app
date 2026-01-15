@@ -1,9 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:herlink/home.dart';
-
+import 'package:herlink/services/api_services.dart';
+import 'package:herlink/models/message_model.dart';
+import 'dart:convert';
+import 'dart:async';
 
 class MessagePage extends StatefulWidget {
-  const MessagePage({super.key});
+  final String recipientId;
+  final String recipientName;
+  final String? recipientAvatar;
+
+  const MessagePage({
+    super.key, 
+    required this.recipientId, 
+    required this.recipientName,
+    this.recipientAvatar,
+  });
 
   @override
   State<MessagePage> createState() => _MessagePageState();
@@ -11,43 +22,84 @@ class MessagePage extends StatefulWidget {
 
 class _MessagePageState extends State<MessagePage> {
   final TextEditingController _messageController = TextEditingController();
-  final List<String> _messages = ["Hello!", "Hi, how are you?"];
+  List<ChatMessage> _messages = [];
+  bool _isLoading = true;
+  Timer? _timer;
 
-  void _sendMessage() {
-    if (_messageController.text.isNotEmpty) {
-      setState(() {
-        _messages.add(_messageController.text);
-      });
-      _messageController.clear();
+  @override
+  void initState() {
+    super.initState();
+    _fetchMessages();
+    // Poll for new messages every 3 seconds (as a simple replacement for WebSockets)
+    _timer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      _fetchMessages(silent: true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _messageController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchMessages({bool silent = false}) async {
+    if (!silent) setState(() => _isLoading = true);
+    try {
+      final response = await ApiService.getChat(widget.recipientId);
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        if (mounted) {
+          setState(() {
+            _messages = data.map((json) => ChatMessage.fromJson(json)).toList();
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Error fetching messages: $e");
+    } finally {
+      if (mounted && !silent) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _sendMessage() async {
+    if (_messageController.text.isEmpty) return;
+    
+    final content = _messageController.text;
+    _messageController.clear();
+
+    try {
+      final response = await ApiService.sendMessage(widget.recipientId, content);
+      if (response.statusCode == 201) {
+        _fetchMessages(silent: true);
+      }
+    } catch (e) {
+      debugPrint("Error sending message: $e");
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFE4E1),
+      backgroundColor: const Color(0xFFF0F2F5),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const HomePage()),
-            );
-          },
+          onPressed: () => Navigator.pop(context),
         ),
         title: Row(
-          children: const [
-            CircleAvatar(child: Icon(Icons.person)),
-            SizedBox(width: 8),
+          children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundImage: widget.recipientAvatar != null ? NetworkImage(widget.recipientAvatar!) : null,
+              child: widget.recipientAvatar == null ? const Icon(Icons.person) : null,
+            ),
+            const SizedBox(width: 12),
             Text(
-              "User name",
-              style: TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.bold,
-              ),
+              widget.recipientName,
+              style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16),
             ),
           ],
         ),
@@ -55,29 +107,50 @@ class _MessagePageState extends State<MessagePage> {
       body: Column(
         children: [
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                return Align(
-                  alignment: index % 2 == 0
-                      ? Alignment.centerLeft
-                      : Alignment.centerRight,
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 6),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: index % 2 == 0 ? Colors.white : Colors.purple[200],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(_messages[index]),
-                  ),
-                );
-              },
-            ),
+            child: _isLoading 
+              ? const Center(child: CircularProgressIndicator(color: Colors.purple))
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _messages.length,
+                  itemBuilder: (context, index) {
+                    final msg = _messages[index];
+                    final isMe = msg.senderId != widget.recipientId;
+                    return Align(
+                      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isMe ? Colors.purple : Colors.white,
+                          borderRadius: BorderRadius.only(
+                            topLeft: const Radius.circular(16),
+                            topRight: const Radius.circular(16),
+                            bottomLeft: Radius.circular(isMe ? 16 : 0),
+                            bottomRight: Radius.circular(isMe ? 0 : 16),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 5,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          msg.content,
+                          style: TextStyle(color: isMe ? Colors.white : Colors.black87, fontSize: 14),
+                        ),
+                      ),
+                    );
+                  },
+                ),
           ),
-          Padding(
+          Container(
             padding: const EdgeInsets.all(12),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: Color(0xFFEEEEEE))),
+            ),
             child: Row(
               children: [
                 Expanded(
@@ -86,22 +159,19 @@ class _MessagePageState extends State<MessagePage> {
                     decoration: InputDecoration(
                       hintText: "Type a message...",
                       filled: true,
-                      fillColor: Colors.white,
+                      fillColor: Colors.grey[100],
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(24),
                         borderSide: BorderSide.none,
                       ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                ElevatedButton(
+                IconButton(
+                  icon: const Icon(Icons.send, color: Colors.purple),
                   onPressed: _sendMessage,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.purple,
-                    minimumSize: const Size(60, 48),
-                  ),
-                  child: const Icon(Icons.send, color: Colors.white),
                 ),
               ],
             ),
@@ -111,4 +181,3 @@ class _MessagePageState extends State<MessagePage> {
     );
   }
 }
-

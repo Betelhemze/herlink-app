@@ -2,9 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:herlink/home.dart';
 import 'package:herlink/marketplace.dart';
 import 'package:herlink/collabrations.dart';
-import 'package:herlink/profile.dart'; // Assuming profile.dart is the correct file
+import 'package:herlink/profile.dart'; 
 import 'package:herlink/manage_event.dart';
 import 'package:herlink/view_event.dart';
+import 'package:herlink/services/api_services.dart';
+import 'package:herlink/models/event_model.dart';
+import 'package:herlink/services/auth_storage.dart';
+import 'package:herlink/login.dart';
+import 'dart:convert';
+import 'package:intl/intl.dart';
 
 class EventsPage extends StatefulWidget {
   const EventsPage({super.key});
@@ -14,7 +20,39 @@ class EventsPage extends StatefulWidget {
 }
 
 class _EventsPageState extends State<EventsPage> {
-  int _selectedIndex = 2; // Events is now index 2
+  int _selectedIndex = 2;
+  List<Event> _events = [];
+  bool _isLoading = true;
+
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchEvents();
+  }
+
+  Future<void> _fetchEvents() async {
+    setState(() => _isLoading = true);
+    try {
+      final response = await ApiService.getEvents(
+        search: _searchController.text.isNotEmpty ? _searchController.text : null,
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        if (mounted) {
+          setState(() {
+            _events = data.map((json) => Event.fromJson(json)).toList();
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Error fetching events: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -45,49 +83,66 @@ class _EventsPageState extends State<EventsPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F2F5),
       appBar: AppBar(
-        title: const Text("Events", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        title: _isSearching
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: "Search events...",
+                  border: InputBorder.none,
+                ),
+                onSubmitted: (_) => _fetchEvents(),
+              )
+            : const Text("Events", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
         elevation: 0,
         automaticallyImplyLeading: false,
         actions: [
-          IconButton(icon: const Icon(Icons.search, color: Colors.black), onPressed: () {}),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _buildEventCard(
-            title: "Women in Tech Summit 2024",
-            category: "Conference",
-            date: "Oct 24, 2024",
-            location: "Virtual",
-            organizer: "HerLink Community",
-            imageColor: Colors.purple,
-          ),
-          _buildEventCard(
-            title: "Digital Marketing Workshop",
-            category: "Workshop",
-            date: "Oct 28, 2024",
-            location: "Addis Ababa",
-            organizer: "Digital Addis",
-            imageColor: Colors.blue,
-          ),
-          _buildEventCard(
-            title: "Startup Pitch Night",
-            category: "Networking",
-            date: "Nov 02, 2024",
-            location: "Tech Hub",
-            organizer: "Venture Capital",
-            imageColor: Colors.orange,
+          IconButton(
+            icon: Icon(_isSearching ? Icons.close : Icons.search, color: Colors.black),
+            onPressed: () {
+              setState(() {
+                _isSearching = !_isSearching;
+                if (!_isSearching) {
+                  _searchController.clear();
+                  _fetchEvents();
+                }
+              });
+            },
           ),
         ],
       ),
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator(color: Colors.purple))
+        :RefreshIndicator(
+          onRefresh: _fetchEvents,
+          child: _events.isEmpty
+            ? const Center(child: Text("No upcoming events found."))
+            : ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _events.length,
+                itemBuilder: (context, index) => _buildEventCard(_events[index]),
+              ),
+        ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const ManageEventPage()));
+        onPressed: () async {
+          final token = await AuthStorage.getToken();
+          if (token == null) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Please login to create an event")),
+              );
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginPage()));
+            }
+            return;
+          }
+          if (mounted) {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const ManageEventPage()))
+              .then((_) => _fetchEvents());
+          }
         },
         backgroundColor: Colors.purple,
-        child: const Icon(Icons.add),
+        child: const Icon(Icons.add, color: Colors.white),
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
@@ -110,25 +165,33 @@ class _EventsPageState extends State<EventsPage> {
     );
   }
 
-  Widget _buildEventCard({
-    required String title,
-    required String category,
-    required String date,
-    required String location,
-    required String organizer,
-    required Color imageColor,
-  }) {
+  Widget _buildEventCard(Event event) {
+    final dateFormat = DateFormat('MMM dd, yyyy');
+    final String dateStr = dateFormat.format(event.startTime);
+    
+    // Assign color based on category
+    Color accentColor;
+    switch (event.category.toLowerCase()) {
+      case 'workshop': accentColor = Colors.purple; break;
+      case 'webinar': accentColor = Colors.blue; break;
+      case 'networking': accentColor = Colors.orange; break;
+      default: accentColor = Colors.teal;
+    }
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => ViewEventPage(
-              title: title,
-              category: category,
-              date: date,
-              location: location,
-              organizer: organizer,
+              title: event.title,
+              category: event.category,
+              date: dateStr,
+              location: event.locationDetails,
+              organizer: event.organizerName ?? "HerLink Partner",
+              description: event.description,
+              bannerUrl: event.bannerUrl,
+              eventId: event.id,
             ),
           ),
         );
@@ -152,12 +215,15 @@ class _EventsPageState extends State<EventsPage> {
             Container(
               height: 150,
               decoration: BoxDecoration(
-                color: imageColor.withOpacity(0.2),
+                color: accentColor.withOpacity(0.1),
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                image: event.bannerUrl != null && event.bannerUrl!.isNotEmpty
+                  ? DecorationImage(image: NetworkImage(event.bannerUrl!), fit: BoxFit.cover)
+                  : null,
               ),
-              child: Center(
-                child: Icon(Icons.event, size: 50, color: imageColor),
-              ),
+              child: event.bannerUrl == null || event.bannerUrl!.isEmpty
+                ? Center(child: Icon(Icons.event, size: 50, color: accentColor))
+                : null,
             ),
             Padding(
               padding: const EdgeInsets.all(16),
@@ -170,22 +236,27 @@ class _EventsPageState extends State<EventsPage> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: imageColor.withOpacity(0.1),
+                          color: accentColor.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Text(category, style: TextStyle(color: imageColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                        child: Text(event.category, style: TextStyle(color: accentColor, fontSize: 11, fontWeight: FontWeight.bold)),
                       ),
-                      Text(date, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                      Text(dateStr, style: const TextStyle(color: Colors.grey, fontSize: 12)),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  Text(event.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
                   Row(
                     children: [
                       const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
                       const SizedBox(width: 4),
-                      Text(location, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                      Text(
+                        event.locationMode == 'Online' ? 'Virtual' : event.locationDetails, 
+                        style: const TextStyle(color: Colors.grey, fontSize: 13),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ],
                   ),
                 ],

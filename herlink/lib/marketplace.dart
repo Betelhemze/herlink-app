@@ -4,8 +4,17 @@ import 'package:herlink/profile.dart';
 import 'package:herlink/home.dart';
 import 'package:herlink/view_product.dart';
 import 'package:herlink/events.dart';
+import 'package:herlink/conversations_list.dart';
+import 'package:herlink/addproduct.dart';
+import 'package:herlink/services/api_services.dart';
+import 'package:herlink/models/product_model.dart';
+import 'package:herlink/services/auth_storage.dart';
+import 'package:herlink/login.dart';
+import 'dart:convert';
+
 class MarketplacePage extends StatefulWidget {
-  const MarketplacePage({super.key});
+  final String? sellerId;
+  const MarketplacePage({super.key, this.sellerId});
 
   @override
   State<MarketplacePage> createState() => _MarketplacePageState();
@@ -13,6 +22,46 @@ class MarketplacePage extends StatefulWidget {
 
 class _MarketplacePageState extends State<MarketplacePage> {
   int _selectedIndex = 1; // Marketplace tab active
+  List<Product> _products = [];
+  bool _isLoading = true;
+  String _selectedCategory = "All";
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchProducts();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchProducts() async {
+    setState(() => _isLoading = true);
+    try {
+      final category = _selectedCategory == "All" ? null : _selectedCategory;
+      final response = await ApiService.getProducts(
+        category: category,
+        search: _searchController.text.isNotEmpty ? _searchController.text : null,
+        sellerId: widget.sellerId,
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        if (mounted) {
+          setState(() {
+            _products = data.map((json) => Product.fromJson(json)).toList();
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Error fetching products: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -56,7 +105,7 @@ class _MarketplacePageState extends State<MarketplacePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5), // Standardized background color
+      backgroundColor: const Color(0xFFF0F2F5),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -68,6 +117,29 @@ class _MarketplacePageState extends State<MarketplacePage> {
         ),
         centerTitle: false,
         actions: [
+          Container(
+            margin: const EdgeInsets.only(right: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.chat_bubble_outline, color: Colors.purple, size: 20),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ConversationListPage()),
+                );
+              },
+            ),
+          ),
           Container(
             margin: const EdgeInsets.only(right: 16),
             decoration: BoxDecoration(
@@ -82,7 +154,7 @@ class _MarketplacePageState extends State<MarketplacePage> {
               ],
             ),
             child: IconButton(
-              icon: const Icon(Icons.notifications_outlined, color: Colors.black),
+              icon: const Icon(Icons.notifications_outlined, color: Colors.black, size: 20),
               onPressed: () {},
             ),
           ),
@@ -93,7 +165,6 @@ class _MarketplacePageState extends State<MarketplacePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Search bar
             Container(
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -107,6 +178,8 @@ class _MarketplacePageState extends State<MarketplacePage> {
                 ],
               ),
               child: TextField(
+                controller: _searchController,
+                onChanged: (value) => _fetchProducts(),
                 decoration: InputDecoration(
                   hintText: "Search products...",
                   hintStyle: TextStyle(color: Colors.grey[400]),
@@ -118,42 +191,40 @@ class _MarketplacePageState extends State<MarketplacePage> {
             ),
             const SizedBox(height: 24),
 
-            // Categories Header
             const Text(
               "Categories",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
 
-            // Category buttons (Horizontal List)
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  _categoryButton("All", true),
+                  _categoryButton("All"),
                   const SizedBox(width: 12),
-                  _categoryButton("Fashion", false),
+                  _categoryButton("Fashion"),
                   const SizedBox(width: 12),
-                  _categoryButton("Tech", false),
+                  _categoryButton("Tech"),
                   const SizedBox(width: 12),
-                  _categoryButton("Food", false),
+                  _categoryButton("Food"),
                   const SizedBox(width: 12),
-                  _categoryButton("Services", false),
+                  _categoryButton("Services"),
                 ],
               ),
             ),
             const SizedBox(height: 24),
 
-            // Featured Product (Large Card)
-            const Text(
-              "Featured",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            _largeProductCard("Premium Leather Bag", "1,200 birr", 4.8),
-            const SizedBox(height: 24),
+            if (_products.isNotEmpty) ...[
+              const Text(
+                "Featured",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              _largeProductCard(_products[0]),
+              const SizedBox(height: 24),
+            ],
 
-            // Products Grid
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -168,25 +239,52 @@ class _MarketplacePageState extends State<MarketplacePage> {
               ],
             ),
             const SizedBox(height: 12),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              childAspectRatio: 0.75, // Ajusted for better height
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              children: [
-                _productCard("Vintage Camera", "450 birr", 4.5, context),
-                _productCard("Wireless Headset", "899 birr", 4.2, context),
-                _productCard("Smart Watch", "1,500 birr", 4.9, context),
-                _productCard("Running Shoes", "750 birr", 4.0, context),
-              ],
-            ),
+            _isLoading 
+              ? const Center(child: CircularProgressIndicator(color: Colors.purple))
+              : _products.isEmpty
+                ? const Center(child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 40),
+                    child: Text("No products found."),
+                  ))
+                : GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      childAspectRatio: 0.75,
+                      mainAxisSpacing: 16,
+                      crossAxisSpacing: 16,
+                    ),
+                    itemCount: _products.length,
+                    itemBuilder: (context, index) {
+                      return _productCard(_products[index], context);
+                    },
+                  ),
           ],
         ),
       ),
-
-      // ✅ Bottom Navigation Bar with navigation
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          final token = await AuthStorage.getToken();
+          if (token == null) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Please login to add a product")),
+              );
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginPage()));
+            }
+            return;
+          }
+          if (mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AddProductPage()),
+            ).then((_) => _fetchProducts());
+          }
+        },
+        backgroundColor: Colors.purple,
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         type: BottomNavigationBarType.fixed,
@@ -208,14 +306,14 @@ class _MarketplacePageState extends State<MarketplacePage> {
     );
   }
 
-  // Category button widget
-  Widget _categoryButton(String label, bool isSelected) {
+  Widget _categoryButton(String label) {
+    bool selected = _selectedCategory == label;
     return Container(
       decoration: BoxDecoration(
-        color: isSelected ? Colors.purple : Colors.white,
+        color: selected ? Colors.purple : Colors.white,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
-          if (!isSelected)
+          if (!selected)
             BoxShadow(
               color: Colors.black.withOpacity(0.05),
               blurRadius: 4,
@@ -226,14 +324,19 @@ class _MarketplacePageState extends State<MarketplacePage> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () {},
+          onTap: () {
+            setState(() {
+              _selectedCategory = label;
+            });
+            _fetchProducts();
+          },
           borderRadius: BorderRadius.circular(24),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             child: Text(
               label,
               style: TextStyle(
-                color: isSelected ? Colors.white : Colors.black87,
+                color: selected ? Colors.white : Colors.black87,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -243,17 +346,22 @@ class _MarketplacePageState extends State<MarketplacePage> {
     );
   }
 
-  // Product card widget
-  Widget _productCard(String name, String price, double rating, BuildContext context) {
+  Widget _productCard(Product product, BuildContext context) {
     return InkWell(
       onTap: () {
         Navigator.push(
-          context, MaterialPageRoute(builder: (_) => ViewProductPage(
-          name: name,
-          price: price,
-          rating: rating,
-          description: "This is a great product. It features high quality materials and excellent craftsmanship. Perfect for your daily needs.",
-        )),
+          context, 
+          MaterialPageRoute(builder: (_) => ViewProductPage(
+            id: product.id,
+            name: product.title,
+            price: "${product.price} birr",
+            rating: product.avgRating,
+            description: product.description,
+            imageUrl: product.imageUrl,
+            category: product.category,
+            sellerId: product.sellerId,
+            sellerName: product.sellerName,
+          )),
         );
       },
       child: Container(
@@ -276,8 +384,13 @@ class _MarketplacePageState extends State<MarketplacePage> {
                 decoration: BoxDecoration(
                   color: Colors.grey[200],
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  image: product.imageUrl != null && product.imageUrl!.isNotEmpty
+                      ? DecorationImage(image: NetworkImage(product.imageUrl!), fit: BoxFit.cover)
+                      : null,
                 ),
-                child: const Center(child: Icon(Icons.image, size: 40, color: Colors.grey)),
+                child: product.imageUrl == null || product.imageUrl!.isEmpty
+                    ? const Center(child: Icon(Icons.image, size: 40, color: Colors.grey))
+                    : null,
               ),
             ),
             Padding(
@@ -286,14 +399,14 @@ class _MarketplacePageState extends State<MarketplacePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    name,
+                    product.title,
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    price,
+                    "${product.price} birr",
                     style: const TextStyle(
                       color: Colors.purple,
                       fontWeight: FontWeight.bold,
@@ -306,7 +419,7 @@ class _MarketplacePageState extends State<MarketplacePage> {
                       Icon(Icons.star, size: 14, color: Colors.orange[400]),
                       const SizedBox(width: 4),
                       Text(
-                        rating.toString(),
+                        product.avgRating.toStringAsFixed(1),
                         style: TextStyle(color: Colors.grey[600], fontSize: 12),
                       ),
                     ],
@@ -320,8 +433,7 @@ class _MarketplacePageState extends State<MarketplacePage> {
     );
   }
 
-  // Larger product card widget
-  Widget _largeProductCard(String name, String price, double rating) {
+  Widget _largeProductCard(Product product) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -343,13 +455,14 @@ class _MarketplacePageState extends State<MarketplacePage> {
             decoration: BoxDecoration(
               color: Colors.grey[200],
               borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              image: DecorationImage(
-                image: AssetImage("assets/images/act2.jpg"), // Placeholder
-                fit: BoxFit.cover,
-              ),
+              image: product.imageUrl != null && product.imageUrl!.isNotEmpty
+                  ? DecorationImage(image: NetworkImage(product.imageUrl!), fit: BoxFit.cover)
+                  : null,
             ),
             child: Stack(
               children: [
+                if (product.imageUrl == null || product.imageUrl!.isEmpty)
+                  const Center(child: Icon(Icons.image, size: 40, color: Colors.grey)),
                 Positioned(
                   top: 16,
                   left: 16,
@@ -377,7 +490,7 @@ class _MarketplacePageState extends State<MarketplacePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      name,
+                      product.title,
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -385,7 +498,7 @@ class _MarketplacePageState extends State<MarketplacePage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      price,
+                      "${product.price} birr",
                       style: const TextStyle(
                         color: Colors.purple,
                         fontSize: 16,
@@ -396,8 +509,8 @@ class _MarketplacePageState extends State<MarketplacePage> {
                     Row(
                       children: List.generate(
                         5,
-                            (index) => Icon(
-                          index < rating.round() ? Icons.star : Icons.star_border,
+                        (index) => Icon(
+                          index < product.avgRating ? Icons.star : Icons.star_border,
                           size: 16,
                           color: Colors.orange,
                         ),
@@ -407,13 +520,18 @@ class _MarketplacePageState extends State<MarketplacePage> {
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    Navigator.pushReplacement(
+                    Navigator.push(
                       context,
                       MaterialPageRoute(builder: (_) => ViewProductPage(
-                        name: name,
-                        price: price,
-                        rating: rating,
-                        description: "This is a premium featured product. Verified quality and top-rated by our community.",
+                        id: product.id,
+                        name: product.title,
+                        price: "${product.price} birr",
+                        rating: product.avgRating,
+                        description: product.description,
+                        imageUrl: product.imageUrl,
+                        category: product.category,
+                        sellerId: product.sellerId,
+                        sellerName: product.sellerName,
                       )),
                     );
                   },
@@ -434,6 +552,3 @@ class _MarketplacePageState extends State<MarketplacePage> {
     );
   }
 }
-
-
-

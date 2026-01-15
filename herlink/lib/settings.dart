@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:herlink/login.dart'; // Ensure this import exists or change to your login page
+import 'package:herlink/login.dart';
+import 'package:herlink/services/api_services.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -12,6 +13,28 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _pushNotifications = true;
   bool _emailNotifications = false;
   bool _darkMode = false;
+  bool _isLoggingOut = false;
+
+  Future<void> _logout() async {
+    setState(() => _isLoggingOut = true);
+    try {
+      await ApiService.logout();
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginPage()),
+          (Route<dynamic> route) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Logout failed: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoggingOut = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,22 +93,22 @@ class _SettingsPageState extends State<SettingsPage> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: OutlinedButton(
-              onPressed: () {
-                // Logout logic
-                 Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => const LoginPage()),
-                  (Route<dynamic> route) => false,
-                );
-              },
+              onPressed: _isLoggingOut ? null : _logout,
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 side: const BorderSide(color: Colors.red),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: const Text(
-                "Log Out",
-                style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16),
-              ),
+              child: _isLoggingOut
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(color: Colors.red, strokeWidth: 2),
+                    )
+                  : const Text(
+                      "Log Out",
+                      style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
             ),
           ),
           const SizedBox(height: 40),

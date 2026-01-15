@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:herlink/view_product.dart';
+import 'package:herlink/services/api_services.dart';
 import 'package:herlink/message.dart';
-import 'package:herlink/view_product.dart'; // To navigate to product details
+import 'package:herlink/models/user_model.dart';
+import 'package:herlink/models/product_model.dart';
+import 'package:herlink/models/event_model.dart';
+import 'dart:convert';
+import 'package:intl/intl.dart';
 
-class ViewUserPage extends StatelessWidget {
+class ViewUserPage extends StatefulWidget {
+  final String id;
   final String name;
   final String business;
   final String industry;
@@ -10,11 +17,96 @@ class ViewUserPage extends StatelessWidget {
 
   const ViewUserPage({
     super.key,
+    required this.id,
     required this.name,
     required this.business,
     required this.industry,
     this.role = "Entrepreneur",
   });
+
+  @override
+  State<ViewUserPage> createState() => _ViewUserPageState();
+}
+
+class _ViewUserPageState extends State<ViewUserPage> {
+  User? _user;
+  List<Product> _products = [];
+  List<Event> _events = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserData();
+  }
+
+  Future<void> _fetchUserData() async {
+    setState(() => _isLoading = true);
+    try {
+      // 1. Fetch User Profile
+      final userRes = await ApiService.getUserById(widget.id);
+      if (userRes.statusCode == 200) {
+        _user = User.fromJson(jsonDecode(userRes.body));
+      }
+
+      // 2. Fetch User Products
+      final productsRes = await ApiService.getProducts(sellerId: widget.id);
+      if (productsRes.statusCode == 200) {
+        final List<dynamic> pData = jsonDecode(productsRes.body);
+        _products = pData.map((json) => Product.fromJson(json)).toList();
+      }
+
+      // 3. Fetch User Events
+      final eventsRes = await ApiService.getUserEvents(widget.id);
+      if (eventsRes.statusCode == 200) {
+        final List<dynamic> eData = jsonDecode(eventsRes.body);
+        _events = eData.map((json) => Event.fromJson(json)).toList();
+      }
+    } catch (e) {
+      debugPrint("Error fetching user data: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showCollaborationRequestDialog(BuildContext context) {
+    final messageController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Connect with ${_user?.fullName ?? widget.name}"),
+        content: TextField(
+          controller: messageController,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            hintText: "Enter your collaboration proposal...",
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () async {
+              if (messageController.text.isEmpty) return;
+              final res = await ApiService.sendCollaborationRequest({
+                "receiver_id": widget.id,
+                "message": messageController.text,
+              });
+              if (res.statusCode == 201) {
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Collaboration request sent!")),
+                  );
+                }
+              }
+            },
+            child: const Text("Send"),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +124,7 @@ class ViewUserPage extends StatelessWidget {
           },
         ),
         title: Text(
-          business.isNotEmpty ? business : name,
+          _user?.businessName ?? (widget.business.isNotEmpty ? widget.business : widget.name),
           style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16),
         ),
         centerTitle: true,
@@ -43,7 +135,9 @@ class ViewUserPage extends StatelessWidget {
           ),
         ],
       ),
-      body: SingleChildScrollView(
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator(color: Colors.purple))
+        : SingleChildScrollView(
         child: Column(
           children: [
             // 1. Profile Header
@@ -52,14 +146,19 @@ class ViewUserPage extends StatelessWidget {
               padding: const EdgeInsets.all(24),
               child: Column(
                 children: [
-                  const CircleAvatar(
+                  CircleAvatar(
                     radius: 40,
                     backgroundColor: Colors.purple,
-                    child: Icon(Icons.person, size: 40, color: Colors.white),
+                    backgroundImage: _user?.avatarUrl != null && _user!.avatarUrl!.isNotEmpty
+                        ? NetworkImage(_user!.avatarUrl!)
+                        : null,
+                    child: (_user?.avatarUrl == null || _user!.avatarUrl!.isEmpty)
+                        ? const Icon(Icons.person, size: 40, color: Colors.white)
+                        : null,
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    business.isNotEmpty ? business : name,
+                    _user?.businessName ?? (widget.business.isNotEmpty ? widget.business : widget.name),
                     style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
@@ -67,8 +166,8 @@ class ViewUserPage extends StatelessWidget {
                     alignment: WrapAlignment.center,
                     spacing: 8,
                     children: [
-                      _buildBadge(role, Colors.purple),
-                      _buildBadge(industry, Colors.blue),
+                      _buildBadge(_user?.role ?? widget.role, Colors.purple),
+                      _buildBadge(_user?.industry ?? widget.industry, Colors.blue),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -88,13 +187,31 @@ class ViewUserPage extends StatelessWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: ElevatedButton(
+                        child: OutlinedButton(
                           onPressed: () {
-                             Navigator.push(
+                            Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const MessagePage()),
+                              MaterialPageRoute(
+                                builder: (_) => MessagePage(
+                                  recipientId: widget.id,
+                                  recipientName: _user?.fullName ?? widget.name,
+                                ),
+                              ),
                             );
                           },
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Colors.purple),
+                            foregroundColor: Colors.purple,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text("Message", style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => _showCollaborationRequestDialog(context),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.purple,
                             foregroundColor: Colors.white,
@@ -136,20 +253,22 @@ class ViewUserPage extends StatelessWidget {
                   const Text("About", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
                   Text(
-                    "We are a female-led business focused on sustainable tech solutions. Our mission is to empower rural communities through accessible digital tools.",
+                    _user?.bio ?? "No biography available.",
                     style: TextStyle(height: 1.5, color: Colors.grey[800], fontSize: 14),
                   ),
-                  const SizedBox(height: 16),
-                  const Text("What we look for:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  const SizedBox(height: 8),
-                  _buildBulletPoint("Partners for rural outreach programs"),
-                  _buildBulletPoint("Tech educators for workshops"),
+                  if (_user?.lookFor != null && _user!.lookFor!.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Text("What we look for:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    const SizedBox(height: 8),
+                    ...(_user!.lookFor!.split(',').map((item) => _buildBulletPoint(item.trim()))),
+                  ],
                 ],
               ),
             ),
             const SizedBox(height: 12),
 
             // 3. Collaboration Interests
+            if (_user?.interests != null && _user!.interests!.isNotEmpty)
             Container(
               width: double.infinity,
               color: Colors.white,
@@ -163,10 +282,7 @@ class ViewUserPage extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      _buildInterestChip("Marketing Partnerships"),
-                      _buildInterestChip("Event Co-hosting"),
-                      _buildInterestChip("Mentorship"),
-                      _buildInterestChip("Product Collab"),
+                      ...(_user!.interests!.split(',').map((item) => _buildInterestChip(item.trim()))),
                     ],
                   ),
                 ],
@@ -189,7 +305,9 @@ class ViewUserPage extends StatelessWidget {
                       children: [
                         const Text("Products", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                          TextButton(
-                          onPressed: () {},
+                          onPressed: () {
+                            // Navigate to marketplace filtered by this seller
+                          },
                           child: const Text("View Shop", style: TextStyle(color: Colors.purple)),
                         ),
                       ],
@@ -198,15 +316,29 @@ class ViewUserPage extends StatelessWidget {
                   const SizedBox(height: 12),
                   SizedBox(
                     height: 180,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      children: [
-                        _buildProductCard(context, "Tech Kit v1", "2500 Birr"),
-                        _buildProductCard(context, "Workshop Pass", "500 Birr"),
-                        _buildProductCard(context, "Consultation", "1000 Birr"),
-                      ],
-                    ),
+                    child: _products.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: Text("No products yet.", style: TextStyle(color: Colors.grey[500])),
+                          )
+                        : ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            itemCount: _products.length,
+                            itemBuilder: (context, index) {
+                              final product = _products[index];
+                              return _buildProductCard(
+                                context,
+                                product.id,
+                                product.title,
+                                "${product.price} Birr",
+                                product.description,
+                                _user?.fullName ?? widget.name,
+                                rating: product.avgRating,
+                                imageUrl: product.imageUrl,
+                              );
+                            },
+                          ),
                   ),
                 ],
               ),
@@ -243,14 +375,17 @@ class ViewUserPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                   const Text("Upcoming Events", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                   const SizedBox(height: 16),
-                   _buildEventItem("Digital Skills Workshop", "Oct 15", "Online"),
-                   const SizedBox(height: 12),
-                   _buildEventItem(" Networking Breakfast", "Oct 20", "Addis Ababa"),
-                ],
-              ),
-            ),
+                    const Text("Upcoming Events", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 16),
+                    if (_events.isEmpty)
+                      Text("No upcoming events.", style: TextStyle(color: Colors.grey[500])),
+                    ..._events.map((e) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _buildEventItem(e.title, DateFormat('MMM dd').format(e.startTime), e.locationMode),
+                    )),
+                 ],
+               ),
+             ),
 
             const SizedBox(height: 32),
           ],
@@ -297,7 +432,7 @@ class ViewUserPage extends StatelessWidget {
     );
   }
 
-  Widget _buildProductCard(BuildContext context, String name, String price) {
+  Widget _buildProductCard(BuildContext context, String productId, String name, String price, String description, String sellerName, {String? imageUrl, double rating = 0.0}) {
     return Container(
       width: 140,
       margin: const EdgeInsets.only(right: 12),
@@ -305,29 +440,55 @@ class ViewUserPage extends StatelessWidget {
         border: Border.all(color: Colors.grey[200]!),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ViewProductPage(
+                id: productId,
+                name: name,
+                price: price,
+                rating: rating,
+                description: description,
+                sellerName: sellerName,
+                imageUrl: imageUrl, // Pass it to view page
               ),
-              child: const Center(child: Icon(Icons.card_giftcard, color: Colors.grey)),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                Text(price, style: const TextStyle(fontSize: 12, color: Colors.purple)),
-              ],
+          );
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                  image: imageUrl != null && imageUrl.isNotEmpty
+                      ? DecorationImage(
+                          image: NetworkImage(imageUrl),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
+                ),
+                child: (imageUrl == null || imageUrl.isEmpty)
+                    ? const Center(child: Icon(Icons.card_giftcard, color: Colors.grey))
+                    : null,
+              ),
             ),
-          ),
-        ],
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(price, style: const TextStyle(fontSize: 12, color: Colors.purple)),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

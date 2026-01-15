@@ -50,13 +50,6 @@ class NotificationsPage extends StatelessWidget {
           const SizedBox(height: 24),
           _buildSectionHeader("Yesterday"),
            _buildNotificationItem(
-            icon: Icons.local_offer,
-            iconColor: Colors.green,
-            title: "Price Drop",
-            message: "An item in your wishlist is now on sale!",
-            time: "1 day ago",
-          ),
-           _buildNotificationItem(
             icon: Icons.system_update,
             iconColor: Colors.grey,
             title: "System Update",

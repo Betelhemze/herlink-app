@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:herlink/services/api_services.dart';
+import 'package:herlink/services/auth_storage.dart';
+import 'package:herlink/login.dart';
+import 'dart:convert';
 
 class ManageEventPage extends StatefulWidget {
   const ManageEventPage({super.key});
@@ -19,6 +23,76 @@ class _ManageEventPageState extends State<ManageEventPage> {
   bool _isOnline = true;
   DateTime _selectedDate = DateTime.now().add(const Duration(days: 7));
   TimeOfDay _selectedTime = const TimeOfDay(hour: 14, minute: 0);
+  bool _isPublishing = false;
+
+  Future<void> _publishEvent() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final token = await AuthStorage.getToken();
+    if (token == null) {
+      if (mounted) {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginPage()));
+      }
+      return;
+    }
+
+    setState(() => _isPublishing = true);
+
+    try {
+      final DateTime startDateTime = DateTime(
+        _selectedDate.year,
+        _selectedDate.month,
+        _selectedDate.day,
+        _selectedTime.hour,
+        _selectedTime.minute,
+      );
+      
+      // For now, let's assume events last 2 hours
+      final DateTime endDateTime = startDateTime.add(const Duration(hours: 2));
+
+      final eventData = {
+        "title": _titleController.text,
+        "description": _descriptionController.text,
+        "category": _selectedCategory,
+        "start_time": startDateTime.toIso8601String(),
+        "end_time": endDateTime.toIso8601String(),
+        "location_mode": _isOnline ? "Online" : "Physical",
+        "location_details": _locationController.text,
+        "banner_url": "", // Placeholder for image upload
+      };
+
+      final response = await ApiService.createEvent(eventData);
+
+      if (mounted) {
+        if (response.statusCode == 201) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Event Published Successfully!")),
+          );
+          Navigator.pop(context);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Error: ${response.body}")),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isPublishing = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _locationController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,14 +107,10 @@ class _ManageEventPageState extends State<ManageEventPage> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-           TextButton(
-            onPressed: () {
-               // Save Logic
-               ScaffoldMessenger.of(context).showSnackBar(
-                 const SnackBar(content: Text("Event Published Successfully!")),
-               );
-               Navigator.pop(context);
-            },
+          _isPublishing 
+          ? const Center(child: Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.purple))))
+          : TextButton(
+            onPressed: _publishEvent,
             child: const Text("Publish", style: TextStyle(color: Colors.purple, fontWeight: FontWeight.bold, fontSize: 16)),
           )
         ],

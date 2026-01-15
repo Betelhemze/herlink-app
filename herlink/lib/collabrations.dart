@@ -3,7 +3,12 @@ import 'package:herlink/home.dart';
 import 'package:herlink/marketplace.dart';
 import 'package:herlink/profile.dart';
 import 'package:herlink/events.dart';
-import 'package:herlink/login.dart'; // Assuming login page exists
+import 'package:herlink/login.dart';
+import 'package:herlink/services/api_services.dart';
+import 'package:herlink/services/auth_storage.dart';
+import 'package:herlink/models/collaboration_model.dart';
+import 'package:herlink/collaboration_details.dart';
+import 'dart:convert';
 
 class CollaborationTab extends StatefulWidget {
   const CollaborationTab({super.key});
@@ -13,7 +18,116 @@ class CollaborationTab extends StatefulWidget {
 }
 
 class _CollaborationTabState extends State<CollaborationTab> {
-  int _selectedIndex = 3; // Collaborate tab active is now 3
+  int _selectedIndex = 3;
+  bool _isLoading = true;
+  bool _isLoggedIn = false;
+  List<Collaboration> _collaborations = [];
+  String? _selectedCategory = "All";
+
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _checkLoginStatus();
+    _fetchCollaborations();
+  }
+
+  Future<void> _checkLoginStatus() async {
+    final token = await AuthStorage.getToken();
+    if (mounted) {
+      setState(() {
+        _isLoggedIn = token != null;
+      });
+    }
+  }
+
+  Future<void> _fetchCollaborations() async {
+    setState(() => _isLoading = true);
+    try {
+      final category = _selectedCategory == "All" ? null : _selectedCategory;
+      final response = await ApiService.getCollaborations(
+        search: _searchController.text.isNotEmpty ? _searchController.text : null,
+        category: category,
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        if (mounted) {
+          setState(() {
+            _collaborations = data.map((json) => Collaboration.fromJson(json)).toList();
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Error fetching collaborations: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showCreateCollaborationDialog() {
+    final titleController = TextEditingController();
+    final descriptionController = TextEditingController();
+    String type = "Marketing";
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text("Post Collaboration"),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(labelText: "Title"),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: descriptionController,
+                      decoration: const InputDecoration(labelText: "Description"),
+                      maxLines: 3,
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: type,
+                      items: ["Marketing", "Partnership", "Events", "Tech"]
+                          .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                          .toList(),
+                      onChanged: (val) => setState(() => type = val!),
+                      decoration: const InputDecoration(labelText: "Type"),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (titleController.text.isEmpty) return;
+                    final res = await ApiService.createCollaboration({
+                      "title": titleController.text,
+                      "description": descriptionController.text,
+                      "type": type,
+                    });
+                    if (res.statusCode == 201) {
+                      _fetchCollaborations();
+                      if (context.mounted) Navigator.pop(context);
+                    }
+                  },
+                  child: const Text("Post"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -62,41 +176,58 @@ class _CollaborationTabState extends State<CollaborationTab> {
         backgroundColor: Colors.white,
         elevation: 0,
         automaticallyImplyLeading: false,
-        title: const Text(
-          "HerLink",
-          style: TextStyle(
-            color: Colors.purple,
-            fontWeight: FontWeight.bold,
-            fontSize: 24,
-            letterSpacing: 1.2, // Branding style
-          ),
-        ),
+        title: _isSearching
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: "Search collaborations...",
+                  border: InputBorder.none,
+                ),
+                onSubmitted: (_) => _fetchCollaborations(),
+              )
+            : const Text(
+                "HerLink",
+                style: TextStyle(
+                  color: Colors.purple,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 24,
+                  letterSpacing: 1.2, // Branding style
+                ),
+              ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.search, color: Colors.black),
+            icon: Icon(_isSearching ? Icons.close : Icons.search, color: Colors.black),
             onPressed: () {
-              // Limited search functionality
+              setState(() {
+                _isSearching = !_isSearching;
+                if (!_isSearching) {
+                  _searchController.clear();
+                  _fetchCollaborations();
+                }
+              });
             },
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-            child: ElevatedButton(
-              onPressed: () {
-                 Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginPage()),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                elevation: 0,
-                textStyle: const TextStyle(fontWeight: FontWeight.bold),
+          if (!_isLoggedIn)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+              child: ElevatedButton(
+                onPressed: () {
+                   Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LoginPage()),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.purple,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  elevation: 0,
+                  textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                child: const Text("Login / Sign Up"),
               ),
-              child: const Text("Login / Sign Up"),
             ),
-          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -147,7 +278,11 @@ class _CollaborationTabState extends State<CollaborationTab> {
                   const SizedBox(height: 32),
                   ElevatedButton(
                     onPressed: () {
-                      // Join logic
+                      if (_isLoggedIn) {
+                        _showCreateCollaborationDialog();
+                      } else {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginPage()));
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.black,
@@ -156,9 +291,9 @@ class _CollaborationTabState extends State<CollaborationTab> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       elevation: 4,
                     ),
-                    child: const Text(
-                      "Join HerLink to Collaborate",
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    child: Text(
+                      _isLoggedIn ? "Post a Collaboration" : "Join HerLink to Collaborate",
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ],
@@ -199,11 +334,11 @@ class _CollaborationTabState extends State<CollaborationTab> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
-                  _buildFilterChip("All", true),
-                  _buildFilterChip("Marketing", false),
-                  _buildFilterChip("Partnership", false),
-                  _buildFilterChip("Events", false),
-                  _buildFilterChip("Tech", false),
+                   _buildFilterChip("All", _selectedCategory == "All"),
+                  _buildFilterChip("Marketing", _selectedCategory == "Marketing"),
+                  _buildFilterChip("Partnership", _selectedCategory == "Partnership"),
+                  _buildFilterChip("Events", _selectedCategory == "Events"),
+                  _buildFilterChip("Tech", _selectedCategory == "Tech"),
                 ],
               ),
             ),
@@ -221,27 +356,31 @@ class _CollaborationTabState extends State<CollaborationTab> {
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
-                  _buildOpportunityCard(
-                    title: "Eco-Friendly Brand Partnership",
-                    business: "GreenEarth Co.",
-                    industry: "Retail / Sustainability",
-                    type: "Product Partnership",
-                    description: "Looking for a local designer to create a capsule collection using sustainable materials.",
-                  ),
-                  _buildOpportunityCard(
-                    title: "Tech Education Event Host",
-                    business: "CodeGirls Inc.",
-                    industry: "Education / Tech",
-                    type: "Event Co-Hosting",
-                    description: "Seeking a venue partner or co-host for a weekend coding bootcamp for teens.",
-                  ),
-                   _buildOpportunityCard(
-                    title: "Influencer Marketing Campaign",
-                    business: "GlowUp Beauty",
-                    industry: "Beauty / Wellness",
-                    type: "Marketing",
-                    description: "Looking for micro-influencers to review our new organic skincare line.",
-                  ),
+                  if (_isLoading)
+                     const Center(child: CircularProgressIndicator(color: Colors.purple))
+                  else if (_collaborations.isEmpty)
+                     const Center(child: Text("No opportunities found", style: TextStyle(color: Colors.grey)))
+                  else
+                    ..._collaborations
+                        .map((c) => _buildOpportunityCard(
+                          title: c.title,
+                          business: "Community Post",
+                          industry: c.type,
+                          type: c.type,
+                          description: c.description,
+                          onTap: () {
+                             if (_isLoggedIn) {
+                               Navigator.push(
+                                 context,
+                                 MaterialPageRoute(
+                                   builder: (_) => CollaborationDetailsPage(collaborationId: c.id),
+                                 ),
+                               ).then((_) => _fetchCollaborations()); // Refresh list to update view count
+                             } else {
+                               Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginPage()));
+                             }
+                          },
+                        )),
                 ],
               ),
             ),
@@ -307,7 +446,14 @@ class _CollaborationTabState extends State<CollaborationTab> {
       child: FilterChip(
         label: Text(label),
         selected: isSelected,
-        onSelected: (bool selected) {},
+        onSelected: (bool selected) {
+          if (selected) {
+            setState(() {
+              _selectedCategory = label;
+            });
+            _fetchCollaborations();
+          }
+        },
         selectedColor: Colors.purple,
         checkmarkColor: Colors.white,
         labelStyle: TextStyle(
@@ -329,8 +475,11 @@ class _CollaborationTabState extends State<CollaborationTab> {
     required String industry,
     required String type,
     required String description,
+    VoidCallback? onTap,
   }) {
-    return Container(
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -430,13 +579,14 @@ class _CollaborationTabState extends State<CollaborationTab> {
             ),
              child: Center(
                child: Text(
-                 "Login to view details",
+                 _isLoggedIn ? "Tap to view details" : "Login to view details",
                  style: TextStyle(color: Colors.grey[400], fontSize: 12, fontStyle: FontStyle.italic),
                ),
              ),
           ),
         ],
       ),
+    ),
     );
   }
 }

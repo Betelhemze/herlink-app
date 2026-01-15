@@ -5,8 +5,8 @@ const router = express.Router();
 
 router.get("/", async (req, res) => {
   try {
-    const result = await pool.query(
-      `
+    const { search, category } = req.query;
+    let query = `
       SELECT
         id,
         title,
@@ -17,9 +17,23 @@ router.get("/", async (req, res) => {
         initiator_id,
         created_at
       FROM collaborations
-      ORDER BY created_at DESC
-      `
-    );
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (category) {
+      params.push(category);
+      query += ` AND type = $${params.length}`;
+    }
+
+    if (search) {
+      params.push(`%${search}%`);
+      query += ` AND (title ILIKE $${params.length} OR description ILIKE $${params.length})`;
+    }
+
+    query += ` ORDER BY created_at DESC`;
+
+    const result = await pool.query(query, params);
 
     res.json(result.rows);
   } catch (err) {

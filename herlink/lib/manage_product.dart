@@ -1,17 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:herlink/services/api_services.dart';
+import 'dart:convert';
 
 class ManageProductPage extends StatefulWidget {
+  final String id;
   final String name;
   final String price;
   final double rating;
+  final int reviewCount;
   final String description;
+  final String? imageUrl;
+  final String? category;
 
   const ManageProductPage({
     super.key,
+    required this.id,
     required this.name,
     required this.price,
     required this.rating,
+    this.reviewCount = 0,
     required this.description,
+    this.imageUrl,
+    this.category,
   });
 
   @override
@@ -20,6 +30,7 @@ class ManageProductPage extends StatefulWidget {
 
 class _ManageProductPageState extends State<ManageProductPage> {
   bool _isEditing = false;
+  bool _isProcessing = false;
 
   late TextEditingController _nameController;
   late TextEditingController _priceController;
@@ -47,17 +58,43 @@ class _ManageProductPageState extends State<ManageProductPage> {
     });
   }
 
-  void _saveChanges() {
-    // TODO: Implement save logic (e.g., API call)
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Product updated successfully!"),
-        backgroundColor: Colors.green,
-      ),
-    );
-    setState(() {
-      _isEditing = false;
-    });
+  Future<void> _saveChanges() async {
+    setState(() => _isProcessing = true);
+    try {
+      final response = await ApiService.updateProduct(widget.id, {
+        "title": _nameController.text,
+        "description": _descriptionController.text,
+        "price": double.tryParse(_priceController.text) ?? 0.0,
+        "category": widget.category, // You could add category selection here too
+        "image_url": widget.imageUrl ?? "",
+      });
+
+      if (response.statusCode == 200) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Product updated successfully!"), backgroundColor: Colors.green),
+          );
+          setState(() {
+            _isEditing = false;
+          });
+        }
+      } else {
+        final error = jsonDecode(response.body);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(error['message'] ?? "Failed to update product"), backgroundColor: Colors.red),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("An error occurred."), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
   }
 
   void _deleteProduct() {
@@ -73,12 +110,34 @@ class _ManageProductPageState extends State<ManageProductPage> {
             child: const Text("Cancel"),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(ctx); // Close dialog
-              Navigator.pop(context); // Go back to profile
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Product deleted")),
-              );
+            onPressed: () async {
+              Navigator.pop(ctx);
+              setState(() => _isProcessing = true);
+              try {
+                final response = await ApiService.deleteProduct(widget.id);
+                if (response.statusCode == 200) {
+                  if (mounted) {
+                    Navigator.pop(context, true); // Go back to profile with refresh signal
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Product deleted")),
+                    );
+                  }
+                } else {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Failed to delete product"), backgroundColor: Colors.red),
+                    );
+                  }
+                }
+              } catch (e) {
+                if (mounted) {
+                   ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("An error occurred."), backgroundColor: Colors.red),
+                  );
+                }
+              } finally {
+                if (mounted) setState(() => _isProcessing = false);
+              }
             },
             child: const Text("Delete", style: TextStyle(color: Colors.red)),
           ),
@@ -123,7 +182,9 @@ class _ManageProductPageState extends State<ManageProductPage> {
               child: Stack(
                 children: [
                    Center(
-                    child: Icon(Icons.shopping_bag_outlined, size: 80, color: Colors.grey[400]),
+                    child: widget.imageUrl != null && widget.imageUrl!.isNotEmpty
+                        ? Image.network(widget.imageUrl!, fit: BoxFit.cover, width: double.infinity)
+                        : Icon(Icons.shopping_bag_outlined, size: 80, color: Colors.grey[400]),
                   ),
                   if (_isEditing)
                     Positioned(
@@ -138,6 +199,8 @@ class _ManageProductPageState extends State<ManageProductPage> {
                         child: const Icon(Icons.camera_alt, color: Colors.white),
                       ),
                     ),
+                  if (_isProcessing)
+                    const Center(child: CircularProgressIndicator(color: Colors.purple)),
                 ],
               ),
             ),
@@ -207,12 +270,12 @@ class _ManageProductPageState extends State<ManageProductPage> {
             const Icon(Icons.star, color: Colors.orange, size: 20),
             const SizedBox(width: 4),
             Text(
-              widget.rating.toString(),
+              widget.rating.toStringAsFixed(1),
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const SizedBox(width: 8),
             Text(
-              "(120 reviews)",
+              "(${widget.reviewCount} reviews)",
               style: TextStyle(color: Colors.grey[600], fontSize: 14),
             ),
           ],

@@ -8,6 +8,16 @@ import 'package:herlink/manage_product.dart';
 import 'package:herlink/events.dart';
 import 'package:herlink/notifications.dart';
 import 'package:herlink/settings.dart';
+import 'package:herlink/services/api_services.dart';
+import 'package:herlink/services/auth_storage.dart';
+import 'package:herlink/models/user_model.dart';
+import 'package:herlink/collaboration_inbox.dart';
+import 'package:herlink/conversations_list.dart';
+import 'package:herlink/models/product_model.dart';
+import 'package:herlink/models/event_model.dart';
+import 'package:herlink/view_event.dart';
+import 'dart:convert';
+import 'package:intl/intl.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -20,6 +30,11 @@ class _ProfilePageState extends State<ProfilePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   int _selectedIndex = 4; // Profile is now index 4
+  User? _user;
+  bool _isLoading = true;
+  List<Event> _hostedEvents = [];
+  List<Event> _joinedEvents = [];
+  List<Product> _userProducts = [];
 
   @override
   void initState() {
@@ -29,6 +44,45 @@ class _ProfilePageState extends State<ProfilePage>
     _tabController.addListener(() {
       setState(() {}); // Rebuild to remove/add FAB based on index
     });
+    _fetchProfile();
+  }
+
+  Future<void> _fetchProfile() async {
+    setState(() => _isLoading = true);
+    try {
+      final profileResponse = await ApiService.getMyProfile();
+      final eventsResponse = await ApiService.getMyEvents();
+
+      if (profileResponse.statusCode == 200) {
+        final profileData = jsonDecode(profileResponse.body);
+        _user = User.fromJson(profileData);
+      }
+
+      if (eventsResponse.statusCode == 200) {
+        final eventsData = jsonDecode(eventsResponse.body);
+        final List<dynamic> hosted = eventsData['hosted'] ?? [];
+        final List<dynamic> joined = eventsData['joined'] ?? [];
+        _hostedEvents = hosted.map((json) => Event.fromJson(json)).toList();
+        _joinedEvents = joined.map((json) => Event.fromJson(json)).toList();
+      }
+
+      if (_user != null) {
+        final productsResponse = await ApiService.getProducts(sellerId: _user!.id);
+        if (productsResponse.statusCode == 200) {
+          final List<dynamic> productsData = jsonDecode(productsResponse.body);
+          _userProducts = productsData.map((json) => Product.fromJson(json)).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint("Error fetching profile: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error loading profile: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -97,6 +151,8 @@ class _ProfilePageState extends State<ProfilePage>
       ),
       body: Column(
           children: [
+            if (_isLoading)
+              const LinearProgressIndicator(color: Colors.purple, backgroundColor: Colors.transparent),
       // Profile Header
       Container(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
@@ -111,10 +167,15 @@ class _ProfilePageState extends State<ProfilePage>
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.purple, width: 2),
                 ),
-                child: const CircleAvatar(
+                child: CircleAvatar(
                   radius: 36,
                   backgroundColor: Colors.purpleAccent,
-                  child: Icon(Icons.person, size: 40, color: Colors.white),
+                  backgroundImage: _user?.avatarUrl != null && _user!.avatarUrl!.isNotEmpty
+                      ? NetworkImage(_user!.avatarUrl!)
+                      : null,
+                  child: (_user?.avatarUrl == null || _user!.avatarUrl!.isEmpty)
+                      ? const Icon(Icons.person, size: 40, color: Colors.white)
+                      : null,
                 ),
               ),
               const SizedBox(width: 20),
@@ -122,18 +183,18 @@ class _ProfilePageState extends State<ProfilePage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      "User Name",
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    Text(
+                      _user?.fullName ?? "Loading...",
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      "UI/UX Designer • Tech Enthusiast",
+                      _user?.role ?? _user?.businessName ?? "Entrepreneur",
                       style: TextStyle(color: Colors.grey[600], fontSize: 13),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      "San Francisco, CA",
+                      _user?.location ?? "Unknown Location",
                       style: TextStyle(color: Colors.grey[500], fontSize: 12),
                     ),
                   ],
@@ -146,20 +207,23 @@ class _ProfilePageState extends State<ProfilePage>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildStat("120", "Products"),
-              _buildStat("4.8", "Rating"),
-              _buildStat("1.2k", "Followers"),
+              _buildStat("${_user?.followersCount ?? 0}", "Products"), // Reusing stat for followers since snippet didn't have products count
+              _buildStat("${_user?.ratingAvg ?? 0.0}", "Rating"),
+              _buildStat("${_user?.followersCount ?? 0}", "Followers"),
             ],
           ),
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () {
-                Navigator.push(
+              onPressed: () async {
+                final result = await Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const EditProfilePage()),
+                  MaterialPageRoute(builder: (_) => EditProfilePage(user: _user)),
                 );
+                if (result == true) {
+                  _fetchProfile();
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.purple,
@@ -226,27 +290,45 @@ class _ProfilePageState extends State<ProfilePage>
     padding: const EdgeInsets.symmetric(horizontal: 20),
     child: ListView(
     padding: const EdgeInsets.only(bottom: 20),
-    children: const [
-    _InfoField(label: "Bio", content: "Passionate about creating intuitive and beautiful user interfaces."),
-    _InfoField(label: "Location", content: "San Francisco, CA"),
-    _InfoField(label: "Industry", content: "Technology"),
-    _InfoField(label: "Email", content: "user@example.com"),
-    _InfoField(label: "Website", content: "www.portfolio.com"),
+    children: [
+    _InfoField(label: "Bio", content: _user?.bio ?? "No bio available."),
+    _InfoField(label: "Location", content: _user?.location ?? "N/A"),
+    _InfoField(label: "Industry", content: _user?.industry ?? "N/A"),
+    _InfoField(label: "Email", content: _user?.email ?? "N/A"),
+    const _InfoField(label: "Website", content: "Not added"),
     ],
     ),
     ),
 
     // Products Tab
-    GridView.count(
-    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-    crossAxisCount: 2,
-    crossAxisSpacing: 16,
-    mainAxisSpacing: 16,
-    childAspectRatio: 0.75,
-    children: List.generate(6, (index) {
-    return _productCard("Design Template ${index + 1}", "\$${(index + 1) * 25}", 4.5);
-    }),
-    ),
+    _userProducts.isEmpty
+    ? const Center(child: Padding(
+        padding: EdgeInsets.symmetric(vertical: 40),
+        child: Text("No products uploaded yet."),
+      ))
+    : GridView.builder(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 0.75,
+        ),
+        itemCount: _userProducts.length,
+        itemBuilder: (context, index) {
+          final product = _userProducts[index];
+          return _productCard(
+            product.id,
+            product.title,
+            "${product.price} birr",
+            product.avgRating,
+            reviewCount: product.reviewCount,
+            imageUrl: product.imageUrl,
+            category: product.category,
+            description: product.description,
+          );
+        },
+      ),
 
     // Reviews Tab
     Padding(
@@ -336,15 +418,62 @@ class _ProfilePageState extends State<ProfilePage>
     ),
 
     // Collaboration Tab
-    Center(
+    Padding(
+      padding: const EdgeInsets.all(20),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.handshake_outlined, size: 64, color: Colors.grey[300]),
+          Icon(Icons.handshake_outlined, size: 64, color: Colors.purple.withOpacity(0.3)),
           const SizedBox(height: 16),
-          Text(
-            "No collaborations yet",
-            style: TextStyle(color: Colors.grey[500], fontSize: 16),
+          const Text(
+            "Manage your communications and requests here.",
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey, fontSize: 13),
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ConversationListPage()),
+                    );
+                  },
+                  icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                  label: const Text("DMs", style: TextStyle(fontSize: 13)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.purple,
+                    side: const BorderSide(color: Colors.purple),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const CollaborationInboxPage()),
+                    );
+                  },
+                  icon: const Icon(Icons.inbox_outlined, size: 18),
+                  label: const Text("Inbox", style: TextStyle(fontSize: 13)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purple,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -358,11 +487,25 @@ class _ProfilePageState extends State<ProfilePage>
         children: [
           const Text("Hosted Events", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 12),
-          _eventListCard(title: "Tech Workshop", date: "Oct 12", location: "Virtual", isHost: true),
+          if (_hostedEvents.isEmpty)
+             const Text("No hosted events", style: TextStyle(color: Colors.grey, fontSize: 13)),
+          ..._hostedEvents.map((e) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _eventListCard(
+              event: e,
+              isHost: true),
+          )),
           const SizedBox(height: 24),
           const Text("Joined Events", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 12),
-          _eventListCard(title: "Marketing Summit", date: "Nov 05", location: "Addis Ababa", isHost: false),
+          if (_joinedEvents.isEmpty)
+            const Text("No joined events", style: TextStyle(color: Colors.grey, fontSize: 13)),
+          ..._joinedEvents.map((e) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _eventListCard(
+              event: e,
+              isHost: false),
+          )),
         ],
       ),
     ),
@@ -374,11 +517,22 @@ class _ProfilePageState extends State<ProfilePage>
 
     floatingActionButton: _tabController.index == 1
     ? FloatingActionButton(
-    onPressed: () {
-    Navigator.push(
-    context,
-    MaterialPageRoute(builder: (_) => const AddProductPage()),
-    );
+    onPressed: () async {
+      final token = await AuthStorage.getToken();
+      if (token == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Please login to add a product")),
+          );
+          return;
+        }
+      }
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AddProductPage()),
+        );
+      }
     },
     backgroundColor: Colors.purple,
     child: const Icon(Icons.add, color: Colors.white),
@@ -417,67 +571,98 @@ class _ProfilePageState extends State<ProfilePage>
           style: TextStyle(color: Colors.grey[600], fontSize: 12),
         ),
       ],
-    );
+      );
   }
 
   // ✅ Events List Card Widget
-  Widget _eventListCard({required String title, required String date, required String location, required bool isHost}) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: isHost ? Colors.purple.withOpacity(0.1) : Colors.blue.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              children: [
-                Text(date.split(" ")[1], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isHost ? Colors.purple : Colors.blue)),
-                Text(date.split(" ")[0], style: TextStyle(fontSize: 12, color: isHost ? Colors.purple : Colors.blue)),
-              ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                const SizedBox(height: 4),
-                Text(location, style: const TextStyle(color: Colors.grey, fontSize: 13)),
-              ],
+  Widget _eventListCard({required Event event, required bool isHost}) {
+    final dateFormat = DateFormat('MMM dd');
+    String dayMonth = dateFormat.format(event.startTime);
+    List<String> dateParts = dayMonth.split(" ");
+    String month = dateParts.length > 0 ? dateParts[0] : "";
+    String day = dateParts.length > 1 ? dateParts[1] : "";
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ViewEventPage(
+              title: event.title,
+              category: event.category,
+              date: DateFormat('MMM dd, yyyy').format(event.startTime),
+              location: event.locationDetails,
+              organizer: event.organizerName ?? "HerLink Partner",
+              description: event.description,
+              bannerUrl: event.bannerUrl,
+              eventId: event.id,
             ),
           ),
-          if (isHost)
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[200]!),
+        ),
+        child: Row(
+          children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
-              child: const Text("Host", style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold)),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              width: 60,
+              decoration: BoxDecoration(
+                color: isHost ? Colors.purple.withOpacity(0.1) : Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                children: [
+                  Text(day, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isHost ? Colors.purple : Colors.blue)),
+                  Text(month.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isHost ? Colors.purple : Colors.blue)),
+                ],
+              ),
             ),
-        ],
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                   Text(event.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15), maxLines: 1, overflow: TextOverflow.ellipsis),
+                   const SizedBox(height: 4),
+                   Row(
+                     children: [
+                       Icon(Icons.location_on_outlined, size: 14, color: Colors.grey[500]),
+                       const SizedBox(width: 4),
+                       Expanded(child: Text(event.locationDetails, style: TextStyle(color: Colors.grey[600], fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                     ],
+                   ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey[300]),
+          ],
+        ),
       ),
     );
   }
 
   // ✅ Product card widget
-  Widget _productCard(String name, String price, double rating) {
+  Widget _productCard(String id, String name, String price, double rating, {String? imageUrl, String? category, String? description, int reviewCount = 0}) {
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => ManageProductPage(
+              id: id,
               name: name,
               price: price,
               rating: rating,
-              description: "This is a detailed description of $name. It is a very high quality product.",
+              reviewCount: reviewCount,
+              description: description ?? "This is a detailed description of $name. It is a very high quality product.",
+              imageUrl: imageUrl,
+              category: category,
             ),
           ),
         );
@@ -500,12 +685,18 @@ class _ProfilePageState extends State<ProfilePage>
             Expanded(
               child: ClipRRect(
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                child: Container(
-                  color: Colors.grey[100],
-                  child: Center(
-                    child: Icon(Icons.image_outlined, size: 50, color: Colors.grey[400]),
-                  ),
-                ),
+                child: imageUrl != null && imageUrl.isNotEmpty
+                    ? Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                      )
+                    : Container(
+                        color: Colors.grey[100],
+                        child: Center(
+                          child: Icon(Icons.image_outlined, size: 50, color: Colors.grey[400]),
+                        ),
+                      ),
               ),
             ),
             Padding(
