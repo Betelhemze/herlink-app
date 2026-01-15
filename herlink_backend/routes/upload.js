@@ -6,9 +6,16 @@ import { authMiddleware } from "../middleware/authmiddleware.js";
 const router = express.Router();
 
 // Configure storage
+import fs from "fs";
+
+const uploadDir = "uploads/";
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "uploads/");
+    cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
@@ -29,27 +36,38 @@ const upload = multer({
     }
     cb(new Error("Only images are allowed (jpeg, jpg, png, webp)"));
   },
-});
+}).single("image");
 
 // POST /api/upload
-router.post("/", authMiddleware, upload.single("image"), (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: "Please upload a file" });
+router.post("/", authMiddleware, (req, res) => {
+  upload(req, res, function (err) {
+    if (err instanceof multer.MulterError) {
+      // A Multer error occurred when uploading.
+      return res.status(400).json({ message: `Upload error: ${err.message}` });
+    } else if (err) {
+      // An unknown error occurred when uploading.
+      return res.status(400).json({ message: err.message });
     }
 
-    const host = req.get("host");
-    const protocol = req.protocol;
-    const imageUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+    // Everything went fine.
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "Please upload a file" });
+      }
 
-    res.json({
-      success: true,
-      imageUrl: imageUrl,
-      filename: req.file.filename,
-    });
-  } catch (error) {
-    res.status(500).json({ message: "Server error during upload" });
-  }
+      const host = req.get("host");
+      const protocol = req.protocol;
+      const imageUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+
+      res.json({
+        success: true,
+        imageUrl: imageUrl,
+        filename: req.file.filename,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Server error during upload" });
+    }
+  });
 });
 
 export default router;
