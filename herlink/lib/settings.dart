@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:herlink/login.dart';
 import 'package:herlink/services/api_services.dart';
+import 'package:herlink/profile.dart';
+import 'package:herlink/legal_pages.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -10,8 +13,6 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  bool _pushNotifications = true;
-  bool _emailNotifications = false;
   bool _darkMode = false;
   bool _isLoggingOut = false;
 
@@ -36,6 +37,17 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _launchTelegram() async {
+    final Uri url = Uri.parse('https://t.me/herlink_support'); // Replace with actual support link
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Could not launch Telegram")),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -57,37 +69,54 @@ class _SettingsPageState extends State<SettingsPage> {
         padding: const EdgeInsets.all(16),
         children: [
           _buildSectionHeader("Account"),
-          _buildSettingItem(icon: Icons.person_outline, title: "Personal Information"),
-          _buildSettingItem(icon: Icons.lock_outline, title: "Security & Password"),
-          _buildSettingItem(icon: Icons.payment, title: "Payments & Payouts"),
+          _buildSettingItem(
+            icon: Icons.person_outline, 
+            title: "User Profile",
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfilePage()),
+              );
+            }
+          ),
           
           const SizedBox(height: 24),
           _buildSectionHeader("Preferences"),
-          _buildSwitchItem(
-            icon: Icons.notifications_none,
-            title: "Push Notifications",
-            value: _pushNotifications,
-            onChanged: (val) => setState(() => _pushNotifications = val),
-          ),
-          _buildSwitchItem(
-            icon: Icons.email_outlined,
-            title: "Email Notifications",
-            value: _emailNotifications,
-            onChanged: (val) => setState(() => _emailNotifications = val),
-          ),
            _buildSwitchItem(
             icon: Icons.dark_mode_outlined,
             title: "Dark Mode",
             value: _darkMode,
             onChanged: (val) => setState(() => _darkMode = val),
           ),
-          _buildSettingItem(icon: Icons.language, title: "Language", trailing: "English"),
 
           const SizedBox(height: 24),
           _buildSectionHeader("Support"),
-          _buildSettingItem(icon: Icons.help_outline, title: "Help Center"),
-          _buildSettingItem(icon: Icons.privacy_tip_outlined, title: "Privacy Policy"),
-          _buildSettingItem(icon: Icons.description_outlined, title: "Terms of Service"),
+          _buildSettingItem(
+            icon: Icons.help_outline, 
+            title: "Help Center",
+            onTap: _launchTelegram,
+            trailing: "Telegram",
+          ),
+          _buildSettingItem(
+            icon: Icons.privacy_tip_outlined, 
+            title: "Privacy Policy",
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PrivacyPolicyPage()),
+              );
+            },
+          ),
+          _buildSettingItem(
+            icon: Icons.description_outlined, 
+            title: "Terms of Service",
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TermsOfServicePage()),
+              );
+            },
+          ),
           
           const SizedBox(height: 40),
           Padding(
