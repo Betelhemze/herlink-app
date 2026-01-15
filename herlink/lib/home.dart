@@ -828,6 +828,78 @@ class _HomePageState extends State<HomePage> {
                     ],
                   ),
                 ),
+                 // Edit/Delete Menu (only if author)
+                if (authorId != null && _user != null && authorId == _user!.id.toString())
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert, size: 20, color: Colors.grey),
+                    onSelected: (value) async {
+                      if (value == 'edit') {
+                        final contentController = TextEditingController(text: content);
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text("Edit Post"),
+                            content: TextField(
+                              controller: contentController,
+                              maxLines: 4,
+                              decoration: const InputDecoration(border: OutlineInputBorder()),
+                            ),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+                              ElevatedButton(onPressed: () async {
+                                  try {
+                                      await ApiService.editPost(postId, contentController.text, hasImage ? "image_url_placeholder" : null); 
+                                      if(context.mounted) {
+                                          Navigator.pop(context);
+                                          _fetchPosts();
+                                      }
+                                  } catch (e) {
+                                      debugPrint("Error editing: $e");
+                                  }
+                              }, child: const Text("Save"))
+                            ],
+                          ),
+                        );
+                      } else if (value == 'delete') {
+                        // Confirm deletion
+                         showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text("Delete Post"),
+                            content: const Text("Are you sure you want to delete this post?"),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                onPressed: () async {
+                                  try {
+                                      await ApiService.deletePost(postId);
+                                      if(context.mounted) {
+                                          Navigator.pop(context);
+                                          _fetchPosts();
+                                      }
+                                  } catch (e) {
+                                      debugPrint("Error deleting: $e");
+                                  }
+                              }, child: const Text("Delete", style: TextStyle(color: Colors.white)))
+                            ],
+                          ),
+                        );
+                      }
+                    },
+                    itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                      const PopupMenuItem<String>(
+                        value: 'edit',
+                        child: Text('Edit'),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'delete',
+                        child: Text('Delete', style: TextStyle(color: Colors.red)),
+                      ),
+                    ],
+                  ),
+
+                if (authorId == null || _user == null || authorId != _user!.id.toString())
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -1149,7 +1221,36 @@ class _HomePageState extends State<HomePage> {
                 ),
                 child: imageUrl == null || imageUrl.isEmpty
                     ? const Center(child: Icon(Icons.shopping_bag_outlined, size: 40, color: Colors.grey))
-                    : null,
+                    : Stack(
+                        children: [
+                             Positioned.fill(child: Image.network(imageUrl, fit: BoxFit.cover)),
+                             Positioned(
+                                 top: 8,
+                                 right: 8,
+                                 child: InkWell(
+                                     onTap: () async {
+                                         // Save item
+                                         try {
+                                             // Id is optional in signature but we need it. Assuming it's passed or available.
+                                             if (id != null) {
+                                                await ApiService.saveItem("product", id);
+                                                if(context.mounted) {
+                                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Saved $name to wishlist!")));
+                                                }
+                                             }
+                                         } catch(e) {
+                                             debugPrint("Error saving: $e");
+                                         }
+                                     },
+                                     child: Container(
+                                         padding: const EdgeInsets.all(4),
+                                         decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                                         child: const Icon(Icons.favorite_border, size: 16, color: Colors.purple),
+                                     ),
+                                 )
+                             )
+                        ],
+                    ),
               ),
             ),
             Padding(

@@ -4,6 +4,7 @@ import 'package:herlink/home.dart';
 import 'package:herlink/services/api_services.dart';
 import 'package:herlink/services/auth_storage.dart';
 import 'package:herlink/signup.dart';
+import 'package:herlink/forgot_password.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -78,10 +79,10 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _forgotPassword() {
-    // TODO: Navigate to forgot password page
-    ScaffoldMessenger.of(
+    Navigator.push(
       context,
-    ).showSnackBar(const SnackBar(content: Text("Forgot Password pressed")));
+      MaterialPageRoute(builder: (_) => const ForgotPasswordPage()),
+    );
   }
 
   @override

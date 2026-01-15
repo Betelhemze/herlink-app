@@ -212,8 +212,10 @@ class _EventsPageState extends State<EventsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              height: 150,
+            Stack(
+              children: [
+               Container(
+               height: 150,
               decoration: BoxDecoration(
                 color: accentColor.withOpacity(0.1),
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
@@ -221,10 +223,33 @@ class _EventsPageState extends State<EventsPage> {
                   ? DecorationImage(image: NetworkImage(event.bannerUrl!), fit: BoxFit.cover)
                   : null,
               ),
-              child: event.bannerUrl == null || event.bannerUrl!.isEmpty
+                child: event.bannerUrl == null || event.bannerUrl!.isEmpty
                 ? Center(child: Icon(Icons.event, size: 50, color: accentColor))
                 : null,
             ),
+             Positioned(
+                top: 8,
+                right: 8,
+                child: InkWell(
+                    onTap: () async {
+                         try {
+                            await ApiService.saveItem("event", event.id); // Assuming event.id is string
+                             if(context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Saved ${event.title} to wishlist!")));
+                            }
+                         } catch(e) {
+                             debugPrint("Error saving event: $e");
+                         }
+                    },
+                    child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                        child: const Icon(Icons.favorite_border, size: 20, color: Colors.purple),
+                    ),
+                ),
+            ),
+           ],
+        ),
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:herlink/services/api_services.dart';
+import 'package:herlink/services/auth_storage.dart';
+import 'package:herlink/services/socket_service.dart';
 import 'package:herlink/models/message_model.dart';
 import 'dart:convert';
 import 'dart:async';
@@ -30,15 +32,38 @@ class _MessagePageState extends State<MessagePage> {
   void initState() {
     super.initState();
     _fetchMessages();
-    // Poll for new messages every 3 seconds (as a simple replacement for WebSockets)
-    _timer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      _fetchMessages(silent: true);
-    });
+    _connectSocket();
+  }
+
+  void _connectSocket() {
+      // Ensure socket is connected
+      if (!SocketService.isConnected) {
+          SocketService.connect();
+      }
+
+      // Listen for new messages
+      SocketService.onMessageReceived((data) {
+          if (mounted) {
+              // Check if message is for this chat
+              // data: { receiverId, content, senderId, ... }
+              if (data['senderId'].toString() == widget.recipientId.toString()) {
+                  setState(() {
+                       _messages.add(ChatMessage(
+                           id: DateTime.now().millisecondsSinceEpoch, // Temp ID
+                           senderId: data['senderId'].toString(),
+                           receiverId: data['receiverId'].toString(),
+                           content: data['content'],
+                           createdAt: DateTime.now(),
+                       ));
+                  });
+                  // Scroll to bottom?
+              }
+          }
+      });
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
     _messageController.dispose();
     super.dispose();
   }
@@ -68,10 +93,40 @@ class _MessagePageState extends State<MessagePage> {
     final content = _messageController.text;
     _messageController.clear();
 
+    // Optimistic UI update
+    final tempMsg = ChatMessage(
+        id: -1, 
+        senderId: "me", // Placeholder, will be replaced by refresh or assumes layout handles 'me' check logic correctly if senderId != recipientId
+        receiverId: widget.recipientId, 
+        content: content, 
+        createdAt: DateTime.now()
+    );
+    
+    // We need to know 'my' ID for the layout logic (isMe check) typically. 
+    // The current layout logic: isMe = msg.senderId != widget.recipientId;
+    // So if I set senderId to anything other than recipientId, it shows as me.
+    setState(() {
+        _messages.add(tempMsg);
+    });
+
     try {
       final response = await ApiService.sendMessage(widget.recipientId, content);
       if (response.statusCode == 201) {
-        _fetchMessages(silent: true);
+        // Prepare socket data to send to receiver
+        final myId = await AuthStorage.getUserId();
+        if (myId != null) {
+            SocketService.sendMessage({
+                "receiverId": widget.recipientId,
+                "content": content,
+                "senderId": myId,
+                "senderName": "User", // Ideally fetch name
+            });
+        }
+      } else {
+        // Revert on failure?
+        if(mounted) {
+             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to send")));
+        }
       }
     } catch (e) {
       debugPrint("Error sending message: $e");

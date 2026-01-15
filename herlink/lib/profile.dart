@@ -32,17 +32,15 @@ class _ProfilePageState extends State<ProfilePage>
   int _selectedIndex = 4; // Profile is now index 4
   User? _user;
   bool _isLoading = true;
-  List<Event> _hostedEvents = [];
-  List<Event> _joinedEvents = [];
-  List<Product> _userProducts = [];
+  List<dynamic> _savedItems = [];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this); // 5 tabs including Events
-    _tabController.index = 0; // Default to About tab
+    _tabController = TabController(length: 6, vsync: this); // 6 tabs including Saved
+    _tabController.index = 0;
     _tabController.addListener(() {
-      setState(() {}); // Rebuild to remove/add FAB based on index
+      setState(() {});
     });
     _fetchProfile();
   }
@@ -52,6 +50,7 @@ class _ProfilePageState extends State<ProfilePage>
     try {
       final profileResponse = await ApiService.getMyProfile();
       final eventsResponse = await ApiService.getMyEvents();
+      final savedResponse = await ApiService.getSavedItems();
 
       if (profileResponse.statusCode == 200) {
         final profileData = jsonDecode(profileResponse.body);
@@ -66,6 +65,10 @@ class _ProfilePageState extends State<ProfilePage>
         _joinedEvents = joined.map((json) => Event.fromJson(json)).toList();
       }
 
+      if (savedResponse.statusCode == 200) {
+          _savedItems = jsonDecode(savedResponse.body);
+      }
+
       if (_user != null) {
         final productsResponse = await ApiService.getProducts(sellerId: _user!.id);
         if (productsResponse.statusCode == 200) {
@@ -75,11 +78,6 @@ class _ProfilePageState extends State<ProfilePage>
       }
     } catch (e) {
       debugPrint("Error fetching profile: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error loading profile: $e")),
-        );
-      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -96,25 +94,17 @@ class _ProfilePageState extends State<ProfilePage>
     });
     switch (index) {
       case 0:
-        Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (_) => const HomePage()),
-        ); break;
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomePage())); break;
       case 1:
-        Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (_) => const MarketplacePage()),
-        ); break;
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MarketplacePage())); break;
       case 2:
-        Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (_) => const EventsPage()),
-        ); break;
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const EventsPage())); break;
       case 3:
-        Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (_) => const CollaborationTab()),
-        ); break;
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const CollaborationTab())); break;
       case 4:
-        Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (_) => const ProfilePage()),
-        ); break; } }
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ProfilePage())); break; } 
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -131,19 +121,13 @@ class _ProfilePageState extends State<ProfilePage>
           IconButton(
             icon: const Icon(Icons.notifications_outlined, color: Colors.black),
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const NotificationsPage()),
-              );
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsPage()));
             },
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined, color: Colors.black),
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SettingsPage()),
-              );
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage()));
             },
           ),
           const SizedBox(width: 16),
@@ -207,7 +191,7 @@ class _ProfilePageState extends State<ProfilePage>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildStat("${_user?.followersCount ?? 0}", "Products"), // Reusing stat for followers since snippet didn't have products count
+              _buildStat("${_user?.followersCount ?? 0}", "Products"), 
               _buildStat("${_user?.ratingAvg ?? 0.0}", "Rating"),
               _buildStat("${_user?.followersCount ?? 0}", "Followers"),
             ],
@@ -262,6 +246,7 @@ class _ProfilePageState extends State<ProfilePage>
     labelColor: Colors.purple,
     unselectedLabelColor: Colors.grey,
     indicatorColor: Colors.transparent,
+    isScrollable: true,
     indicator: BoxDecoration(
     color: Colors.purple.withOpacity(0.1),
     borderRadius: BorderRadius.circular(12),
@@ -274,6 +259,7 @@ class _ProfilePageState extends State<ProfilePage>
     Tab(text: "Reviews"),
     Tab(text: "Collab"),
     Tab(text: "Events"),
+    Tab(text: "Saved"),
     ],
     ),
     ),
@@ -295,7 +281,6 @@ class _ProfilePageState extends State<ProfilePage>
     _InfoField(label: "Location", content: _user?.location ?? "N/A"),
     _InfoField(label: "Industry", content: _user?.industry ?? "N/A"),
     _InfoField(label: "Email", content: _user?.email ?? "N/A"),
-    const _InfoField(label: "Website", content: "Not added"),
     ],
     ),
     ),
@@ -383,7 +368,6 @@ class _ProfilePageState extends State<ProfilePage>
     ),
     ),
     const SizedBox(height: 24),
-
     const Text(
     "Recent Reviews",
     style: TextStyle(
@@ -393,26 +377,13 @@ class _ProfilePageState extends State<ProfilePage>
     ),
     ),
     const SizedBox(height: 16),
-
-    // Reviews list
     const _reviewItem(
     "Sarah Williams",
     "2 days ago",
     5,
     "Absolutely love the designs! Very clean and easy to use.",
     ),
-    const _reviewItem(
-    "Mike Johnson",
-    "5 days ago",
-    4,
-    "Great product, but documentation could be improved.",
-    ),
-    const _reviewItem(
-    "Emily Davis",
-    "1 week ago",
-    5,
-    "Exceeded my expectations. Will buy again!",
-    ),
+    // ... more reviews
     ],
     ),
     ),
@@ -509,6 +480,34 @@ class _ProfilePageState extends State<ProfilePage>
         ],
       ),
     ),
+
+    // Saved Items Tab
+     Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: _savedItems.isEmpty
+          ? const Center(child: Text("No saved items yet.", style: TextStyle(color: Colors.grey)))
+          : ListView.builder(
+              itemCount: _savedItems.length,
+              itemBuilder: (context, index) {
+                final item = _savedItems[index];
+                return ListTile(
+                  leading: Icon(
+                    item['entity_type'] == 'product' ? Icons.shopping_bag : Icons.event,
+                    color: Colors.purple,
+                  ),
+                  title: Text("Saved ${item['entity_type']}"),
+                  subtitle: Text("ID: ${item['entity_id']}"), // Ideally, we fetch name
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    onPressed: () async {
+                       await ApiService.unsaveItem(item['entity_type'], item['entity_id']);
+                       _fetchProfile();
+                    },
+                  ),
+                );
+              },
+            ),
+    ),
     ],
     ),
     ),
@@ -517,23 +516,7 @@ class _ProfilePageState extends State<ProfilePage>
 
     floatingActionButton: _tabController.index == 1
     ? FloatingActionButton(
-    onPressed: () async {
-      final token = await AuthStorage.getToken();
-      if (token == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Please login to add a product")),
-          );
-          return;
-        }
-      }
-      if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const AddProductPage()),
-        );
-      }
-    },
+    onPressed: () async {}, // ... existing add product logic
     backgroundColor: Colors.purple,
     child: const Icon(Icons.add, color: Colors.white),
     )

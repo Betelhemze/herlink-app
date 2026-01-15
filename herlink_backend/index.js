@@ -20,7 +20,19 @@ dotenv.config();
 import pool from "./config/db.js";
 
 
+import { Server } from "socket.io";
+import http from "http";
+import savedRoutes from "./routes/saved.js";
+
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*", // Allow all connections for now (dev)
+    methods: ["GET", "POST"]
+  }
+});
+
 app.use(express.json());
 
 const __filename = fileURLToPath(import.meta.url);
@@ -38,6 +50,26 @@ app.use("/api/feed", feedRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/posts", postsRoutes);
+app.use("/api/saved", savedRoutes);
+
+// Socket.io connection
+io.on("connection", (socket) => {
+  console.log(`User connected: ${socket.id}`);
+
+  socket.on("join_room", (userId) => {
+    socket.join(userId);
+    console.log(`User ${socket.id} joined room ${userId}`);
+  });
+
+  socket.on("send_message", (data) => {
+    // data: { receiverId, content, senderId, senderName, ... }
+    io.to(data.receiverId).emit("receive_message", data);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected", socket.id);
+  });
+});
 
 // Example route
 app.get("/health", (req, res) => {
@@ -55,6 +87,6 @@ pool.query("SELECT NOW()", (err, res) => {
 
 // Port setup
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

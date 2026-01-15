@@ -155,4 +155,51 @@ router.post("/:id/share", authMiddleware, async (req, res) => {
   }
 });
 
+/* =========================
+   UPDATE POST
+========================= */
+router.put("/:id", authMiddleware, async (req, res) => {
+  try {
+    const postId = req.params.id;
+    const userId = req.user.userId;
+    const { content, image_url } = req.body;
+
+    const result = await pool.query(
+      `UPDATE posts SET content = $1, image_url = $2 WHERE id = $3 AND author_id = $4 RETURNING *`,
+      [content, image_url, postId, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(403).json({ message: "Not authorized or post not found" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to update post" });
+  }
+});
+
+/* =========================
+   DELETE POST
+========================= */
+router.delete("/:id", authMiddleware, async (req, res) => {
+  try {
+    const postId = req.params.id;
+    const userId = req.user.userId;
+
+    const result = await pool.query(
+      `DELETE FROM posts WHERE id = $1 AND author_id = $2 RETURNING id`,
+      [postId, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(403).json({ message: "Not authorized or post not found" });
+    }
+
+    res.json({ message: "Post deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to delete post" });
+  }
+});
+
 export default router;

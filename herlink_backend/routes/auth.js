@@ -89,4 +89,47 @@ router.post("/logout", authMiddleware, async (req, res) => {
     message: "Logged out successfully",
   });
 });
+
+/* =========================
+   FORGOT PASSWORD (MOCK)
+========================= */
+router.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "Email required" });
+
+    // Check if user exists
+    const userResult = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
+    if (userResult.rows.length === 0) {
+      // Security: return OK even if email doesn't exist
+      return res.json({ message: "If account exists, reset link sent." });
+    }
+
+    // Mock sending email
+    console.log(`[MOCK] Sending reset email to ${email}`);
+    
+    // In real app: generate token, save to DB with expiry, send email
+    res.json({ message: "Reset link sent to your email." });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/* =========================
+   RESET PASSWORD (MOCK)
+========================= */
+router.post("/reset-password", async (req, res) => {
+    try {
+        const { email, newPassword, token } = req.body; // In real app, validate token
+        if (!email || !newPassword) return res.status(400).json({ message: "Invalid data" });
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await pool.query("UPDATE users SET password_hash = $1 WHERE email = $2", [hashedPassword, email]);
+
+        res.json({ message: "Password reset successfully" });
+    } catch (error) {
+         res.status(500).json({ message: "Server error" });
+    }
+});
+
 export default router;

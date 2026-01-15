@@ -317,4 +317,41 @@ class ApiService {
   static Future<http.Response> getPaymentHistory() async {
     return get("/api/payments/history", auth: true);
   }
+  
+  // Forgot / Reset Password
+  static Future<http.Response> forgotPassword(String email) async {
+    return post("/api/auth/forgot-password", {"email": email});
+  }
+
+  static Future<http.Response> resetPassword(String email, String newPassword, String token) async {
+    return post("/api/auth/reset-password", {"email": email, "newPassword": newPassword, "token": token});
+  }
+
+  // Edit / Delete Post
+  static Future<http.Response> editPost(String id, String content, String? imageUrl) async {
+    return put("/api/posts/$id", {
+      "content": content,
+      "image_url": imageUrl,
+    }, auth: true);
+  }
+
+  static Future<http.Response> deletePost(String id) async {
+    return delete("/api/posts/$id", auth: true);
+  }
+
+  // Saved Items
+  static Future<http.Response> getSavedItems() async {
+    return get("/api/saved", auth: true);
+  }
+
+  static Future<http.Response> saveItem(String type, String id) async {
+    return post("/api/saved", {
+      "entity_type": type,
+      "entity_id": id,
+    }, auth: true);
+  }
+
+  static Future<http.Response> unsaveItem(String type, String id) async {
+    return delete("/api/saved/$type/$id", auth: true);
+  }
 }
