@@ -80,6 +80,20 @@ class ApiService {
     });
   }
 
+  static Future<http.Response> googleLogin({
+      String? token,
+      String? email,
+      String? name,
+      String? avatar,
+  }) async {
+      return post("/api/auth/google", {
+          "token": token,
+          "mock_email": email,
+          "mock_name": name,
+          "mock_avatar": avatar
+      });
+  }
+
   static Future<http.Response> logout() async {
     final response = await post("/api/auth/logout", {}, auth: true);
     await AuthStorage.logout();

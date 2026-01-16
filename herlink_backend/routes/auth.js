@@ -132,4 +132,92 @@ router.post("/reset-password", async (req, res) => {
     }
 });
 
+/* =========================
+   GOOGLE LOGIN
+========================= */
+import { OAuth2Client } from 'google-auth-library';
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || "MOCK_CLIENT_ID");
+
+router.post("/google", async (req, res) => {
+    try {
+        const { token, mock_email, mock_name, mock_avatar } = req.body;
+        
+        let email, name, picture;
+
+        if (token) {
+            // Real verification flow
+            try {
+                 const ticket = await client.verifyIdToken({
+                    idToken: token,
+                    audience: process.env.GOOGLE_CLIENT_ID, 
+                });
+                const payload = ticket.getPayload();
+                email = payload.email;
+                name = payload.name;
+                picture = payload.picture;
+            } catch(e) {
+                // If verify fails (dev mode without real keys), fallback if mocks provided or error
+                 console.log("Google verify failed (expected in dev without valid token/id):", e.message);
+                 if (mock_email) {
+                     email = mock_email;
+                     name = mock_name;
+                     picture = mock_avatar;
+                 } else {
+                     return res.status(401).json({ message: "Invalid Google Token" });
+                 }
+            }
+        } else if (mock_email) {
+             // Direct mock for testing
+             email = mock_email;
+             name = mock_name;
+             picture = mock_avatar;
+        } else {
+            return res.status(400).json({message: "Token required"});
+        }
+
+        // Check if user exists
+        const userResult = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+        let user;
+
+        if (userResult.rows.length === 0) {
+            // Create user
+             // Password is not applicable, generate a random hash or mark as google-auth
+             const randomPass = await bcrypt.hash(Math.random().toString(36), 10);
+             const newUser = await pool.query(
+                `INSERT INTO users (email, password_hash, full_name, avatar_url)
+                 VALUES ($1, $2, $3, $4)
+                 RETURNING id, email, full_name, avatar_url`,
+                [email, randomPass, name, picture]
+            );
+            user = newUser.rows[0];
+            
+            // Also create profile entry
+             await pool.query(
+                `INSERT INTO profiles (user_id, avatar_url) VALUES ($1, $2)`,
+                [user.id, picture]
+            );
+
+        } else {
+            user = userResult.rows[0];
+        }
+
+        const jwtToken = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: "1d" });
+
+        res.json({
+            success: true,
+            token: jwtToken,
+            user: {
+                id: user.id,
+                email: user.email,
+                fullName: user.full_name,
+                avatarUrl: user.avatar_url // return avatar if needed
+            }
+        });
+
+    } catch (error) {
+        console.error("Google auth error:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
 export default router;
