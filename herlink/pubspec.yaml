@@ -83,6 +83,8 @@ flutter_icons:
   android: true
   ios: true
   image_path: "assets/images/logos.png"
+  adaptive_icon_background: "#FFF0F5"
+  adaptive_icon_foreground: "assets/images/launcher_foreground.png"
 # Note:
 # - Add your real PNG at assets/images/logo.png for launcher icons.
 # - After adding your logo files run:

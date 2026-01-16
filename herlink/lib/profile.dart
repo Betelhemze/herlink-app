@@ -24,6 +24,7 @@ import 'package:herlink/view_product.dart';
 import 'package:herlink/models/user_model.dart' as model_user; // Prefixing just in case of conflict if needed, but not required yet
 import 'package:herlink/view_user.dart'; // Just in case missing in some contexts
 import 'package:herlink/models/post_model.dart';
+import 'package:herlink/models/review_model.dart' as model_review;
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -42,6 +43,7 @@ class _ProfilePageState extends State<ProfilePage>
   List<Event> _hostedEvents = [];
   List<Event> _joinedEvents = [];
   List<Product> _userProducts = [];
+  List<model_review.Review> _profileReviews = [];
 
   @override
   void initState() {
@@ -83,6 +85,12 @@ class _ProfilePageState extends State<ProfilePage>
         if (productsResponse.statusCode == 200) {
           final List<dynamic> productsData = jsonDecode(productsResponse.body);
           _userProducts = productsData.map((json) => Product.fromJson(json)).toList();
+        }
+
+        final reviewsResponse = await ApiService.getUserReviews(_user!.id);
+        if (reviewsResponse.statusCode == 200) {
+           final List<dynamic> reviewsData = jsonDecode(reviewsResponse.body);
+           _profileReviews = reviewsData.map((json) => model_review.Review.fromJson(json)).toList();
         }
       }
     } catch (e) {
@@ -198,8 +206,8 @@ class _ProfilePageState extends State<ProfilePage>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildStat("${_user?.followersCount ?? 0}", "Products"), 
-              _buildStat("${_user?.ratingAvg ?? 0.0}", "Rating"),
+              _buildStat("${_userProducts.length}", "Products"), 
+              _buildStat("${_user?.ratingAvg?.toStringAsFixed(1) ?? '0.0'}", "Rating"),
               _buildStat("${_user?.followersCount ?? 0}", "Followers"),
             ],
           ),
@@ -258,15 +266,15 @@ class _ProfilePageState extends State<ProfilePage>
     color: Colors.purple.withOpacity(0.1),
     borderRadius: BorderRadius.circular(12),
     ),
-    labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-    padding: const EdgeInsets.all(4),
+    labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+    padding: const EdgeInsets.symmetric(vertical: 8),
     tabs: const [
-    Tab(text: "About"),
     Tab(text: "Product"),
     Tab(text: "Reviews"),
     Tab(text: "Collab"),
     Tab(text: "Events"),
     Tab(text: "Saved"),
+    Tab(text: "About"),
     ],
     ),
     ),
@@ -278,21 +286,7 @@ class _ProfilePageState extends State<ProfilePage>
     child: TabBarView(
     controller: _tabController,
     children: [
-    // About Tab
-    Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 20),
-    child: ListView(
-    padding: const EdgeInsets.only(bottom: 20),
-    children: [
-    _InfoField(label: "Bio", content: _user?.bio ?? "No bio available."),
-    _InfoField(label: "Location", content: _user?.location ?? "N/A"),
-    _InfoField(label: "Industry", content: _user?.industry ?? "N/A"),
-    _InfoField(label: "Email", content: _user?.email ?? "N/A"),
-    ],
-    ),
-    ),
-
-    // Products Tab
+    // Product Tab Moved to first position for better visibility
     _userProducts.isEmpty
     ? const Center(child: Padding(
         padding: EdgeInsets.symmetric(vertical: 40),
@@ -346,9 +340,9 @@ class _ProfilePageState extends State<ProfilePage>
     children: [
     Row(
     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-    children: const [
-    Text(
-    "Total Reviews",
+    children: [
+    const Text(
+    "Overall Rating",
     style: TextStyle(
     fontSize: 16,
     fontWeight: FontWeight.bold,
@@ -356,8 +350,8 @@ class _ProfilePageState extends State<ProfilePage>
     ),
     ),
     Text(
-    "4.8",
-    style: TextStyle(
+    _user?.ratingAvg?.toStringAsFixed(1) ?? "0.0",
+    style: const TextStyle(
     fontSize: 24,
     fontWeight: FontWeight.bold,
     color: Colors.purple,
@@ -366,11 +360,11 @@ class _ProfilePageState extends State<ProfilePage>
     ],
     ),
     const SizedBox(height: 16),
-    _ratingBar(5, 78),
-    _ratingBar(4, 24),
-    _ratingBar(3, 8),
-    _ratingBar(2, 4),
-    _ratingBar(1, 2),
+    _ratingBar(5, _profileReviews.isEmpty ? 0 : (_profileReviews.where((r)=>r.rating >= 4.5).length / _profileReviews.length * 100).round()),
+    _ratingBar(4, _profileReviews.isEmpty ? 0 : (_profileReviews.where((r)=>r.rating >= 3.5 && r.rating < 4.5).length / _profileReviews.length * 100).round()),
+    _ratingBar(3, _profileReviews.isEmpty ? 0 : (_profileReviews.where((r)=>r.rating >= 2.5 && r.rating < 3.5).length / _profileReviews.length * 100).round()),
+    _ratingBar(2, _profileReviews.isEmpty ? 0 : (_profileReviews.where((r)=>r.rating >= 1.5 && r.rating < 2.5).length / _profileReviews.length * 100).round()),
+    _ratingBar(1, _profileReviews.isEmpty ? 0 : (_profileReviews.where((r)=>r.rating < 1.5).length / _profileReviews.length * 100).round()),
     ],
     ),
     ),
@@ -384,13 +378,22 @@ class _ProfilePageState extends State<ProfilePage>
     ),
     ),
     const SizedBox(height: 16),
-    const _reviewItem(
-    "Sarah Williams",
-    "2 days ago",
-    5,
-    "Absolutely love the designs! Very clean and easy to use.",
-    ),
-    // ... more reviews
+    _profileReviews.isEmpty 
+      ? const Center(child: Text("No reviews yet."))
+      : ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _profileReviews.length,
+          itemBuilder: (context, index) {
+            final r = _profileReviews[index];
+            return _reviewItem(
+              r.authorName,
+              DateFormat('MMM dd, yyyy').format(r.createdAt),
+              r.rating.round(),
+              r.comment,
+            );
+          },
+        ),
     ],
     ),
     ),
@@ -578,15 +581,33 @@ class _ProfilePageState extends State<ProfilePage>
               },
             ),
     ),
+    // About Tab
+    Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 20),
+    child: ListView(
+    padding: const EdgeInsets.only(bottom: 20),
+    children: [
+    _InfoField(label: "Bio", content: _user?.bio ?? "No bio available."),
+    _InfoField(label: "Location", content: _user?.location ?? "N/A"),
+    _InfoField(label: "Industry", content: _user?.industry ?? "N/A"),
+    _InfoField(label: "Email", content: _user?.email ?? "N/A"),
+    ],
+    ),
+    ),
     ],
     ),
     ),
     ],
     ),
 
-    floatingActionButton: _tabController.index == 1
+    floatingActionButton: (_tabController.index == 0) // Now Product is index 0
     ? FloatingActionButton(
-    onPressed: () async {}, // ... existing add product logic
+    onPressed: () async {
+       final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => const AddProductPage()));
+       if (result == true) {
+         _fetchProfile();
+       }
+    },
     backgroundColor: Colors.purple,
     child: const Icon(Icons.add, color: Colors.white),
     )

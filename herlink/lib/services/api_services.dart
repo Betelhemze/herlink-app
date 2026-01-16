@@ -181,6 +181,15 @@ class ApiService {
     return post("/api/collaboration-requests", data, auth: true);
   }
 
+  // User reviews
+  static Future<http.Response> getUserReviews(String userId) async {
+    return get("/api/users/$userId/reviews");
+  }
+
+  static Future<http.Response> addUserReview(String userId, Map<String, dynamic> data) async {
+    return post("/api/users/$userId/reviews", data, auth: true);
+  }
+
   static Future<http.Response> getCollaborationInbox() async {
     return get("/api/collaboration-requests/me", auth: true);
   }

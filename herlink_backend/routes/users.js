@@ -202,5 +202,60 @@ router.get("/:id/events", async (req, res) => {
   }
 });
 
+router.get("/:id/reviews", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      `SELECT r.*, u.full_name, u.avatar_url, r.created_at
+       FROM reviews r
+       JOIN users u ON r.author_id = u.id
+       WHERE r.target_id = $1 AND r.target_type = 'User'
+       ORDER BY r.created_at DESC`,
+      [id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error fetching user reviews" });
+  }
+});
+
+router.post("/:id/reviews", authMiddleware, async (req, res) => {
+  try {
+    const author_id = req.user.userId;
+    const { id } = req.params; // target_user_id
+    const { rating, comment } = req.body;
+
+    if (!rating) {
+      return res.status(400).json({ message: "Rating is required" });
+    }
+
+    if (author_id === id) {
+       return res.status(400).json({ message: "You cannot review yourself" });
+    }
+
+    const result = await pool.query(
+      `
+      INSERT INTO reviews (author_id, target_id, target_type, rating, comment)
+      VALUES ($1, $2, 'User', $3, $4)
+      RETURNING *
+      `,
+      [author_id, id, rating, comment]
+    );
+
+    // Update rating avg in profiles table (simple approach)
+    await pool.query(
+      `UPDATE profiles 
+       SET rating_avg = (SELECT AVG(rating) FROM reviews WHERE target_id = $1 AND target_type = 'User')
+       WHERE user_id = $1`,
+      [id]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+     console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
 export default router;

@@ -51,11 +51,19 @@ class _SignUpPageState extends State<SignUpPage> {
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 201 && data['success'] == true) {
+        final token = data['token'];
+        if (token != null) {
+          await AuthStorage.saveToken(token);
+        }
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Registration successful! Please log in.")),
+            const SnackBar(content: Text("Registration successful! Welcome to HerLink.")),
           );
-          Navigator.pop(context); // Go back to login
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const HomePage()),
+            (route) => false,
+          );
         }
       } else {
         if (mounted) {
