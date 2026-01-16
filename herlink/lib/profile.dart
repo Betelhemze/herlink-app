@@ -33,6 +33,9 @@ class _ProfilePageState extends State<ProfilePage>
   User? _user;
   bool _isLoading = true;
   List<dynamic> _savedItems = [];
+  List<Event> _hostedEvents = [];
+  List<Event> _joinedEvents = [];
+  List<Product> _userProducts = [];
 
   @override
   void initState() {

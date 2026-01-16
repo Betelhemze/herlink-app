@@ -49,7 +49,7 @@ class _MessagePageState extends State<MessagePage> {
               if (data['senderId'].toString() == widget.recipientId.toString()) {
                   setState(() {
                        _messages.add(ChatMessage(
-                           id: DateTime.now().millisecondsSinceEpoch, // Temp ID
+                           id: DateTime.now().millisecondsSinceEpoch.toString(), // Temp ID
                            senderId: data['senderId'].toString(),
                            receiverId: data['receiverId'].toString(),
                            content: data['content'],
@@ -95,7 +95,7 @@ class _MessagePageState extends State<MessagePage> {
 
     // Optimistic UI update
     final tempMsg = ChatMessage(
-        id: -1, 
+        id: "-1", 
         senderId: "me", // Placeholder, will be replaced by refresh or assumes layout handles 'me' check logic correctly if senderId != recipientId
         receiverId: widget.recipientId, 
         content: content, 

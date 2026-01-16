@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:herlink/home.dart';
+import 'package:herlink/signup.dart';
 import 'package:herlink/services/api_services.dart';
 import 'package:herlink/services/auth_storage.dart';
-import 'package:herlink/signup.dart';
+import 'package:http/http.dart' as http;
 import 'package:herlink/forgot_password.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -17,6 +19,7 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _obscurePassword = true;
 
   @override
   void dispose() {

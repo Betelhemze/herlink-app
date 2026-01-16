@@ -100,13 +100,23 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: _isLoading ? null : _resetPassword,
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white, minWidth: double.infinity, padding: const EdgeInsets.all(16)),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.purple, 
+                      foregroundColor: Colors.white, 
+                      minimumSize: const Size(double.infinity, 50), 
+                      padding: const EdgeInsets.all(16)
+                  ),
                   child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("Set New Password"),
                 )
             ] else 
                 ElevatedButton(
                     onPressed: _isLoading ? null : _sendResetLink,
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white, minWidth: double.infinity, padding: const EdgeInsets.all(16)),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.purple, 
+                        foregroundColor: Colors.white, 
+                        minimumSize: const Size(double.infinity, 50), 
+                        padding: const EdgeInsets.all(16)
+                    ),
                     child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("Send Reset Link"),
                 ),
           ],
