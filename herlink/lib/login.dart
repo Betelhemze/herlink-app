@@ -312,17 +312,8 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 12),
 
-              // Forgot password link
-              GestureDetector(
-                onTap: _forgotPassword,
-                child: const Text(
-                  "Forgot Password?",
-                  style: TextStyle(
-                    color: Colors.purple,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
+              
+              
             ],
           ),
         ),
