@@ -20,6 +20,10 @@ import 'dart:convert';
 import 'package:intl/intl.dart';
 
 import 'package:herlink/payment_history.dart';
+import 'package:herlink/view_product.dart';
+import 'package:herlink/models/user_model.dart' as model_user; // Prefixing just in case of conflict if needed, but not required yet
+import 'package:herlink/view_user.dart'; // Just in case missing in some contexts
+import 'package:herlink/models/post_model.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});

@@ -4,9 +4,9 @@ import 'package:herlink/home.dart';
 import 'package:herlink/signup.dart';
 import 'package:herlink/services/api_services.dart';
 import 'package:herlink/services/auth_storage.dart';
-import 'package:http/http.dart' as http;
+import 'package:http/http.dart' as http_pkg;
 import 'package:herlink/forgot_password.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:google_sign_in/google_sign_in.dart' as gsi;
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -91,11 +91,11 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _handleGoogleLogin() async {
       setState(() => _isLoading = true);
       try {
-          final GoogleSignIn googleSignIn = GoogleSignIn();
-          GoogleSignInAccount? googleUser;
+          final gsi.GoogleSignIn googleSignInInstance = gsi.GoogleSignIn();
+          gsi.GoogleSignInAccount? googleUser;
           
           try {
-             googleUser = await googleSignIn.signIn();
+             googleUser = await googleSignInInstance.signIn();
           } catch (error) {
              debugPrint("Google Sign In Error (Expected if not configured): $error");
              // Fallback for demo if not configured: Simulate a google user
@@ -112,7 +112,7 @@ class _LoginPageState extends State<LoginPage> {
           }
 
           if (googleUser != null) {
-              final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+              final gsi.GoogleSignInAuthentication googleAuth = await googleUser.authentication;
               // Send token to backend
               final response = await ApiService.googleLogin(
                   token: googleAuth.idToken,
@@ -132,7 +132,7 @@ class _LoginPageState extends State<LoginPage> {
       }
   }
 
-  void _processLoginResponse(http.Response response) async {
+  void _processLoginResponse(http_pkg.Response response) async {
        if (response.statusCode == 200) {
             final data = jsonDecode(response.body);
             if (data['success'] == true) {
