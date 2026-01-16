@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:herlink/services/api_services.dart';
 import 'package:herlink/services/auth_storage.dart';
 import 'package:herlink/login.dart';
+import 'package:herlink/widgets/telebirr_mock.dart';
 
 class ViewEventPage extends StatelessWidget {
   final String title;
@@ -189,25 +190,16 @@ class ViewEventPage extends StatelessWidget {
                             final transactionId = data['transaction_id'];
 
                             // Show simulate dialog to verify (mock provider)
-                            final success = await showDialog<bool>(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                title: const Text('Simulate Payment'),
-                                content: const Text(
-                                  'Simulate Telebirr response for this mock payment.',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(ctx, false),
-                                    child: const Text('Fail'),
-                                  ),
-                                  ElevatedButton(
-                                    onPressed: () => Navigator.pop(ctx, true),
-                                    child: const Text('Succeed'),
-                                  ),
-                                ],
-                              ),
-                            );
+                             final success = await showModalBottomSheet<bool>(
+                               context: context,
+                               isScrollControlled: true,
+                               backgroundColor: Colors.transparent,
+                               builder: (ctx) => TelebirrPaymentMock(
+                                 amount: amount.toDouble(),
+                                 merchantName: organizer,
+                                 transactionId: transactionId,
+                               ),
+                             );
 
                             // show progress while verifying
                             showDialog(

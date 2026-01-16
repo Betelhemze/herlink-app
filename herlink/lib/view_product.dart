@@ -12,6 +12,7 @@ import 'package:herlink/login.dart';
 import 'package:herlink/collabrations.dart'; 
 import 'package:herlink/models/review_model.dart';
 import 'package:intl/intl.dart';
+import 'package:herlink/widgets/telebirr_mock.dart';
 
 class ViewProductPage extends StatefulWidget {
   final String? id;
@@ -516,17 +517,16 @@ class _ViewProductPageState extends State<ViewProductPage> {
                              final data = jsonDecode(initRes.body);
                              final transactionId = data['transaction_id'];
 
-                              final success = await showDialog<bool>(
-                                context: context,
-                                builder: (ctx) => AlertDialog(
-                                  title: const Text('Simulate Payment'),
-                                  content: const Text('Simulate provider response for this mock purchase.'),
-                                  actions: [
-                                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Fail')),
-                                    ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Succeed')),
-                                  ],
-                                ),
-                              );
+                               final success = await showModalBottomSheet<bool>(
+                                 context: context,
+                                 isScrollControlled: true,
+                                 backgroundColor: Colors.transparent,
+                                 builder: (ctx) => TelebirrPaymentMock(
+                                   amount: amount.toDouble(),
+                                   merchantName: widget.sellerName ?? "HerLink Marketplace",
+                                   transactionId: transactionId,
+                                 ),
+                               );
                               
                               showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator(color: Colors.purple)));
                               final verifyRes = await ApiService.verifyPayment(transactionId, success == true);
