@@ -73,16 +73,15 @@ flutter:
 # --- Native splash / launcher config (run generator commands after adding your real logo files) ---
 flutter_native_splash:
   color: "#FFF0F5"
-  image: assets/images/logos.png
+  image: assets/images/launcher_foreground.png
   android: true
   ios: true
-  android_disable_fullscreen: true
   fullscreen: false
 
-flutter_icons:
+flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/logos.png"
+  image_path: "assets/images/launcher_foreground.png"
   adaptive_icon_background: "#FFF0F5"
   adaptive_icon_foreground: "assets/images/launcher_foreground.png"
 # Note:
