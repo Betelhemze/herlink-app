@@ -11,13 +11,19 @@ router.get("/", authMiddleware, async (req, res) => {
     const result = await pool.query(
       `
       SELECT s.entity_type, s.entity_id, s.created_at,
-             p.title as title, p.image_url as image_url, p.price::text as price, NULL as start_time
+             p.title as title, p.image_url as image_url, p.price::text as price, p.description as description,
+             COALESCE(ROUND(AVG(r.rating)::numeric, 1), 0)::float as avg_rating,
+             NULL as start_time
       FROM saved_items s
       JOIN products p ON s.entity_id = p.id::text
+      LEFT JOIN reviews r ON p.id = r.target_id AND r.target_type = 'Product'
       WHERE s.user_id = $1 AND s.entity_type = 'product'
+      GROUP BY s.entity_type, s.entity_id, s.created_at, p.id
       UNION ALL
       SELECT s.entity_type, s.entity_id, s.created_at,
-             e.title as title, e.banner_url as image_url, NULL as price, e.start_time::text as start_time
+             e.title as title, e.banner_url as image_url, NULL as price, e.description as description,
+             0 as avg_rating,
+             e.start_time::text as start_time
       FROM saved_items s
       JOIN events e ON s.entity_id = e.id::text
       WHERE s.user_id = $1 AND s.entity_type = 'event'

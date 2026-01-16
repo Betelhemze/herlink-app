@@ -527,11 +527,23 @@ class _ProfilePageState extends State<ProfilePage>
                                  name: title,
                                  id: item['entity_id'].toString(),
                                  price: item['price']?.toString() ?? "0",
+                                 rating: (item['avg_rating'] as num?)?.toDouble() ?? 0.0,
+                                 description: item['description'] ?? "No description",
+                                 imageUrl: imageUrl, 
                                  category: "Market",
-                                 sellerId: null, // IDs from saved might not have all info, ideally we fetch full object or just minimal view
+                                 sellerId: null,
                              )));
                         } else {
-                             // Navigate to event
+                             Navigator.push(context, MaterialPageRoute(builder: (_) => ViewEventPage(
+                                 title: title,
+                                 category: "Event",
+                                 date: item['start_time'] != null ? DateFormat('MMM dd, yyyy').format(DateTime.parse(item['start_time'])) : "TBA",
+                                 location: "See details",
+                                 organizer: "Organized via HerLink",
+                                 description: item['description'] ?? "No description",
+                                 bannerUrl: imageUrl,
+                                 eventId: item['entity_id'].toString(),
+                             )));
                         }
                     },
                     leading: Container(

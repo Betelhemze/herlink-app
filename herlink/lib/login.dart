@@ -6,7 +6,8 @@ import 'package:herlink/services/api_services.dart';
 import 'package:herlink/services/auth_storage.dart';
 import 'package:http/http.dart' as http_pkg;
 import 'package:herlink/forgot_password.dart';
-import 'package:google_sign_in/google_sign_in.dart' as gsi;
+import 'package:google_sign_in/google_sign_in.dart';
+
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -89,47 +90,59 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _handleGoogleLogin() async {
-      setState(() => _isLoading = true);
+    setState(() => _isLoading = true);
+    try {
+      // 1. Use the singleton instance
+      final googleSignInInstance = GoogleSignIn.instance;
+
+      // 2. Initialize the plugin (required in v7+)
+      // On Android, clientId is usually read from google-services.json automatically
+      await googleSignInInstance.initialize();
+
+      GoogleSignInAccount? googleUser;
+
       try {
-          final gsi.GoogleSignIn googleSignInInstance = gsi.GoogleSignIn();
-          gsi.GoogleSignInAccount? googleUser;
-          
-          try {
-             googleUser = await googleSignInInstance.signIn();
-          } catch (error) {
-             debugPrint("Google Sign In Error (Expected if not configured): $error");
-             // Fallback for demo if not configured: Simulate a google user
-             // Remove this in production!
-             if (true) { // Demo mode
-                 final res = await ApiService.googleLogin(
-                     email: "demo_google_user@gmail.com",
-                     name: "Demo Google User",
-                     avatar: "https://lh3.googleusercontent.com/a/default-user"
-                 );
-                 _processLoginResponse(res);
-                 return;
-             }
-          }
+        // 3. Change .signIn() to .authenticate()
+        googleUser = await googleSignInInstance.authenticate();
+      } catch (error) {
+        debugPrint("Google Sign In Error: $error");
 
-          if (googleUser != null) {
-              final gsi.GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-              // Send token to backend
-              final response = await ApiService.googleLogin(
-                  token: googleAuth.idToken,
-                  email: googleUser.email, 
-                  name: googleUser.displayName,
-                  avatar: googleUser.photoUrl
-              );
-              _processLoginResponse(response);
-          } else {
-               setState(() => _isLoading = false);
-          }
-
-      } catch (e) {
-          debugPrint("Login General Error: $e");
-          setState(() => _isLoading = false);
-           if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Google Login Failed: $e")));
+        // Fallback for demo (kept from your original logic)
+        if (true) {
+          final res = await ApiService.googleLogin(
+              email: "demo_google_user@gmail.com",
+              name: "Demo Google User",
+              avatar: "https://lh3.googleusercontent.com/a/default-user"
+          );
+          _processLoginResponse(res);
+          return;
+        }
       }
+
+      if (googleUser != null) {
+        // 4. .authentication is now a synchronous property (removed 'await')
+        final GoogleSignInAuthentication googleAuth = googleUser.authentication;
+
+        // Send token to backend
+        final response = await ApiService.googleLogin(
+            token: googleAuth.idToken,
+            email: googleUser.email,
+            name: googleUser.displayName,
+            avatar: googleUser.photoUrl
+        );
+        _processLoginResponse(response);
+      } else {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      debugPrint("Login General Error: $e");
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Google Login Failed: $e"))
+        );
+      }
+    }
   }
 
   void _processLoginResponse(http_pkg.Response response) async {

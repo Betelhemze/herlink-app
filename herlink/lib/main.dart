@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:herlink/home.dart';
 import 'package:herlink/login.dart';
 import 'package:herlink/services/auth_storage.dart';
+import 'package:firebase_core/firebase_core.dart';
+
 import 'package:herlink/splashscreen.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const MyApp());
-}
+  await Firebase.initializeApp();
+  runApp(const MyApp()); }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});

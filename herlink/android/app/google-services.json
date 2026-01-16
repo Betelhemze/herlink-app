@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "598221913854",
+    "project_id": "herlink-41c93",
+    "storage_bucket": "herlink-41c93.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:598221913854:android:c8b91f58592a9fa57cefaf",
+        "android_client_info": {
+          "package_name": "com.example.herlink"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "598221913854-eqiiqbrgtqgv2c90b07tg4fqm6b5gjfv.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDEbQTFlrbaxuYSOx1A9Mu3nXg5zjBA_J4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "598221913854-eqiiqbrgtqgv2c90b07tg4fqm6b5gjfv.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
