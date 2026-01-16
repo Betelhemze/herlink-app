@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:herlink/home.dart';
 import 'package:herlink/services/api_services.dart';
+import 'package:herlink/services/auth_storage.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
