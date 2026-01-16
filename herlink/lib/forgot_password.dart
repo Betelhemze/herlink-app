@@ -69,57 +69,115 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Reset Password"), elevation: 0, backgroundColor: Colors.white, foregroundColor: Colors.black),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          children: [
-            const Text(
-              "Enter your email to receive a password reset link (or mock token).",
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-            const SizedBox(height: 24),
-            TextField(
-              controller: _emailController,
-              decoration: const InputDecoration(labelText: "Email", border: OutlineInputBorder()),
-              enabled: !_emailSent,
-            ),
-            const SizedBox(height: 16),
-            if (_emailSent) ...[
-                TextField(
-                  controller: _otpController,
-                  decoration: const InputDecoration(labelText: "Token (Mock)", border: OutlineInputBorder()),
-                ),
-                const SizedBox(height: 16),
-                 TextField(
-                  controller: _passwordController,
-                  decoration: const InputDecoration(labelText: "New Password", border: OutlineInputBorder()),
-                  obscureText: true,
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _resetPassword,
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.purple, 
-                      foregroundColor: Colors.white, 
-                      minimumSize: const Size(double.infinity, 50), 
-                      padding: const EdgeInsets.all(16)
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: const Text("Reset Password"), 
+        elevation: 0, 
+        backgroundColor: Colors.white, 
+        foregroundColor: Colors.black
+      ),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Icon
+              Center(
+                child: Container(
+                  height: 100,
+                  width: 100,
+                  decoration: BoxDecoration(
+                    color: Colors.purple.withOpacity(0.1),
+                    shape: BoxShape.circle,
                   ),
-                  child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("Set New Password"),
-                )
-            ] else 
-                ElevatedButton(
-                    onPressed: _isLoading ? null : _sendResetLink,
+                  child: const Icon(Icons.lock_reset, color: Colors.purple, size: 60),
+                ),
+              ),
+              const SizedBox(height: 32),
+              const Text(
+                "Forgot password?",
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _emailSent 
+                  ? "We've sent a 6-digit code to your email. Please enter it below along with your new password."
+                  : "Enter your email address and we'll send you instructions on how to reset your password.",
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 16, color: Colors.grey, height: 1.5),
+              ),
+              const SizedBox(height: 40),
+              
+              TextField(
+                controller: _emailController,
+                decoration: InputDecoration(
+                  labelText: "Email Address", 
+                  prefixIcon: const Icon(Icons.email_outlined),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  enabled: !_emailSent,
+                ),
+              ),
+              const SizedBox(height: 20),
+              
+              if (_emailSent) ...[
+                  TextField(
+                    controller: _otpController,
+                    decoration: InputDecoration(
+                      labelText: "Reset Token", 
+                      prefixIcon: const Icon(Icons.security),
+                      hintText: "Enter the code you received",
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                   TextField(
+                    controller: _passwordController,
+                    decoration: InputDecoration(
+                      labelText: "New Password", 
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    obscureText: true,
+                  ),
+                  const SizedBox(height: 32),
+                  ElevatedButton(
+                    onPressed: _isLoading ? null : _resetPassword,
                     style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.purple, 
                         foregroundColor: Colors.white, 
-                        minimumSize: const Size(double.infinity, 50), 
-                        padding: const EdgeInsets.all(16)
+                        minimumSize: const Size(double.infinity, 56), 
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
                     ),
-                    child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("Send Reset Link"),
-                ),
-          ],
+                    child: _isLoading 
+                      ? const CircularProgressIndicator(color: Colors.white) 
+                      : const Text("Reset Password", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  )
+              ] else ...[
+                  ElevatedButton(
+                      onPressed: _isLoading ? null : _sendResetLink,
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purple, 
+                          foregroundColor: Colors.white, 
+                          minimumSize: const Size(double.infinity, 56), 
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 0,
+                      ),
+                      child: _isLoading 
+                        ? const CircularProgressIndicator(color: Colors.white) 
+                        : const Text("Send Reset Instructions", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  ),
+              ],
+              
+              const SizedBox(height: 24),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Back to Login", style: TextStyle(color: Colors.purple, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
         ),
       ),
     );

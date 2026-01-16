@@ -19,6 +19,8 @@ import 'package:herlink/view_event.dart';
 import 'dart:convert';
 import 'package:intl/intl.dart';
 
+import 'package:herlink/payment_history.dart';
+
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
 
@@ -113,22 +115,20 @@ class _ProfilePageState extends State<ProfilePage>
     return Scaffold(
       backgroundColor: const Color(0xFFF0F2F5),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        title: const Text("My Profile", style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
         elevation: 0,
-        title: const Text(
-          "Profile",
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
-        centerTitle: false,
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: Colors.black),
+            icon: const Icon(Icons.history, color: Colors.purple),
             onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsPage()));
+               Navigator.push(context, MaterialPageRoute(builder: (_) => const PaymentHistoryPage()));
             },
+            tooltip: "Payment History",
           ),
           IconButton(
-            icon: const Icon(Icons.settings_outlined, color: Colors.black),
+            icon: const Icon(Icons.settings_outlined),
             onPressed: () {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage()));
             },
@@ -488,24 +488,75 @@ class _ProfilePageState extends State<ProfilePage>
      Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: _savedItems.isEmpty
-          ? const Center(child: Text("No saved items yet.", style: TextStyle(color: Colors.grey)))
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.favorite_border, size: 48, color: Colors.grey[300]),
+                  const SizedBox(height: 16),
+                  const Text("No saved items yet.", style: TextStyle(color: Colors.grey)),
+                ],
+              ),
+            )
           : ListView.builder(
+              padding: const EdgeInsets.only(top: 10, bottom: 20),
               itemCount: _savedItems.length,
               itemBuilder: (context, index) {
                 final item = _savedItems[index];
-                return ListTile(
-                  leading: Icon(
-                    item['entity_type'] == 'product' ? Icons.shopping_bag : Icons.event,
-                    color: Colors.purple,
+                final bool isProduct = item['entity_type'] == 'product';
+                final String title = item['title'] ?? "Unknown Title";
+                final String? imageUrl = item['image_url'];
+                final String? detail = isProduct ? "ETB ${item['price']}" : (item['start_time'] != null ? DateFormat('MMM dd, yyyy').format(DateTime.parse(item['start_time'])) : "Event");
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: Colors.grey[200]!),
                   ),
-                  title: Text("Saved ${item['entity_type']}"),
-                  subtitle: Text("ID: ${item['entity_id']}"), // Ideally, we fetch name
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Colors.red),
-                    onPressed: () async {
-                       await ApiService.unsaveItem(item['entity_type'], item['entity_id']);
-                       _fetchProfile();
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.all(8),
+                    onTap: () {
+                        if (isProduct) {
+                             Navigator.push(context, MaterialPageRoute(builder: (_) => ViewProductPage(
+                                 name: title,
+                                 id: item['entity_id'].toString(),
+                                 price: item['price']?.toString() ?? "0",
+                                 category: "Market",
+                                 sellerId: null, // IDs from saved might not have all info, ideally we fetch full object or just minimal view
+                             )));
+                        } else {
+                             // Navigate to event
+                        }
                     },
+                    leading: Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                        image: imageUrl != null ? DecorationImage(image: NetworkImage(imageUrl), fit: BoxFit.cover) : null,
+                      ),
+                      child: imageUrl == null ? Icon(isProduct ? Icons.shopping_bag : Icons.event, color: Colors.purple[200]) : null,
+                    ),
+                    title: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    subtitle: Text(
+                        detail ?? "",
+                        style: TextStyle(color: Colors.grey[600], fontSize: 12)
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.favorite, color: Colors.purple, size: 20),
+                      onPressed: () async {
+                         await ApiService.unsaveItem(item['entity_type'], item['entity_id'].toString());
+                         _fetchProfile();
+                      },
+                    ),
                   ),
                 );
               },

@@ -4,16 +4,30 @@ import { authMiddleware } from "../middleware/authmiddleware.js";
 
 const router = express.Router();
 
-// Get saved items for user
+// Get saved items for user (enriched)
 router.get("/", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.userId;
     const result = await pool.query(
-      `SELECT * FROM saved_items WHERE user_id = $1 ORDER BY created_at DESC`,
+      `
+      SELECT s.entity_type, s.entity_id, s.created_at,
+             p.title as title, p.image_url as image_url, p.price::text as price, NULL as start_time
+      FROM saved_items s
+      JOIN products p ON s.entity_id = p.id::text
+      WHERE s.user_id = $1 AND s.entity_type = 'product'
+      UNION ALL
+      SELECT s.entity_type, s.entity_id, s.created_at,
+             e.title as title, e.banner_url as image_url, NULL as price, e.start_time::text as start_time
+      FROM saved_items s
+      JOIN events e ON s.entity_id = e.id::text
+      WHERE s.user_id = $1 AND s.entity_type = 'event'
+      ORDER BY created_at DESC
+      `,
       [userId]
     );
     res.json(result.rows);
   } catch (err) {
+    console.error("Error fetching saved items:", err);
     res.status(500).json({ message: "Server error" });
   }
 });

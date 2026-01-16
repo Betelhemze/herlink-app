@@ -567,6 +567,7 @@ class _HomePageState extends State<HomePage> {
                             contentType: post.type,
                             contentTypeColor: _getTypeColor(post.type),
                             hasImage: post.imageUrl != null,
+                            imageUrl: post.imageUrl,
                             postId: post.id,
                             likesCount: post.likesCount,
                             commentsCount: post.commentsCount,
@@ -762,6 +763,7 @@ class _HomePageState extends State<HomePage> {
     required String contentType,
     required Color contentTypeColor,
     required bool hasImage,
+    String? imageUrl,
     required String postId,
     required int likesCount,
     required int commentsCount,
@@ -848,7 +850,7 @@ class _HomePageState extends State<HomePage> {
                               TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
                               ElevatedButton(onPressed: () async {
                                   try {
-                                      await ApiService.editPost(postId, contentController.text, hasImage ? "image_url_placeholder" : null); 
+                                      await ApiService.editPost(postId, contentController.text, imageUrl); 
                                       if(context.mounted) {
                                           Navigator.pop(context);
                                           _fetchPosts();
@@ -936,7 +938,7 @@ class _HomePageState extends State<HomePage> {
               content,
               style: const TextStyle(fontSize: 14, height: 1.5, color: Colors.black87),
             ),
-            if (hasImage) ...[
+            if (hasImage && imageUrl != null) ...[
               const SizedBox(height: 12),
               Container(
                 height: 180,
@@ -944,13 +946,12 @@ class _HomePageState extends State<HomePage> {
                 decoration: BoxDecoration(
                   color: Colors.grey[200],
                   borderRadius: BorderRadius.circular(12),
-                  image: const DecorationImage(
-                     image: NetworkImage("https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=400&auto=format&fit=crop"),
+                  image: DecorationImage(
+                     image: NetworkImage(imageUrl),
                      fit: BoxFit.cover,
                   ),
                 ),
-                // Fallback icon if image fails (though NetworkImage won't show in basic implementation without error handling)
-                child: const Center(child: Icon(Icons.image, size: 40, color: Colors.grey)),
+                child: null,
               ),
             ],
             const SizedBox(height: 16),
